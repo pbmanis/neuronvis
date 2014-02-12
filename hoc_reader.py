@@ -52,6 +52,12 @@ class HocReader(object):
             self.read_hoc_section_lists(names.keys())
 
 
+    def update(self):
+        """
+        Update information on sections after external changes
+        """
+        self._read_section_info()
+
     def get_section(self, sec_name):
         """
         Return the hoc Section object with the given name.
@@ -152,6 +158,7 @@ class HocReader(object):
 
     def _read_section_info(self):
         # Collect list of all sections and their mechanism names.
+        self.sec_index=collections.OrderedDict()
         self.sections = collections.OrderedDict()
         self.mechanisms = collections.OrderedDict()
         for i, sec in enumerate(self.h.allsec()):
@@ -161,7 +168,7 @@ class HocReader(object):
             for seg in sec:
                 for mech in seg:
                     mechs.add(mech.name())
-            self.mechanisms[sec.name] = mechs
+            self.mechanisms[sec.name()] = mechs
 
     def find_section_groups(self):
         """
@@ -183,7 +190,6 @@ class HocReader(object):
             m = sid.match(hname)
             sections=[]
             if m is not None:
-                r = eval('dir(self.h.%s)' % hvar)
                 for v in getattr(self.h, hvar):
                     sections.append(v)
                 self.add_section_group(hvar, sections)
@@ -320,8 +326,8 @@ class HocReader(object):
             * QTransform that maps from 3D array indexes to original vertex 
                 coordinates.
         """
-        res = 0.4 # resolution of scalar field in microns
-        maxdia = 10. # maximum diameter (defines shape of kernel)
+        res = 0.5 # resolution of scalar field in microns
+        maxdia = 25. # maximum diameter (defines shape of kernel)
         kernel_size = int(maxdia/res) + 1 # width of kernel
         
         vertexes, lines = self.get_geometry()

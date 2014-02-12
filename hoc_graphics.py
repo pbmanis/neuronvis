@@ -79,12 +79,12 @@ class HocGraphic(object):
                 sec_colors[index] = color
                 if mechanism is not None:
                     g = self.h.get_density(self.h.sections[sec_name], mechanism)
-#                    print 'section: %s, gmax = %f' % (sec_name, g)
+                    print 'section: %s, gmax = %f' % (sec_name, g)
                     mechmax  = max(mechmax, g)
                     sec_colors[index,3] = g
                 elif alpha is not None:
                     sec_colors[index, 3] = alpha
-#            print mechmax
+            print mechmax
         if mechanism is not None and mechmax > 0:
             sec_colors[:,3] = 0.05 + 0.95*sec_colors[:,3]/mechmax # set alpha for all sections
         self.set_section_colors(sec_colors)
