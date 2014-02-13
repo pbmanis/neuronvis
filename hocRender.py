@@ -32,6 +32,8 @@ import numpy as np
 commands = {
     'sec-type': "Sections colored by type",
     'vm': "Animation of per-section membrane voltage over time.",
+    'graph': "Simple wireframe rendering.",
+    'cylinders': "Simple cylinder rendering.",
     }
 
 # Handle command line arguments.
@@ -90,20 +92,39 @@ print 'hoc: ', hoc
 # Handle commands
 ##########################################################
 
+section_colors = {
+    'axon': 'r', 
+    'hillock': 'g',
+    'soma': 'b',
+    'somatic': 'b',
+    'apic': 'y',
+    'apical': 'y',
+    'dend': 'm',
+    'basal': 'm',
+    'initseg': 'c',
+    'ais': 'c',
+    'heminode': 'g', 
+    'stalk':'y', 
+    'branch': 'b', 
+    'neck': 'brown',
+    'swelling': 'magenta', 
+    'tip': 'powderblue', 
+    'parentaxon': 'orange', 
+    'synapse': 'k'}
+
+print("Section groups:")
+print(view.hr.sec_groups.keys())
+
 if command == 'sec-type':
     # Color sections by type.
-    section_list = hoc.get_sections()
-    if len(section_list) > 1: # multiple names, so assign colors to structure type
-        section_colors = {}
-        for i, s in enumerate(section_list.keys()):
-            section_colors[s] = hoc_graphics.colorMap[i]
-    else: # single section name, assign colors to SectionList types:
-        section_colors={'heminode': 'g', 'stalk':'y', 'branch': 'b', 'neck': 'brown',
-            'swelling': 'magenta', 'tip': 'powderblue', 'parentaxon': 'orange', 'synapse': 'k'}
-    #hoc.read_hoc_section_lists(section_colors.keys())
     surf = view.draw_surface()
     surf.set_group_colors(section_colors, alpha=0.35)
-    
+elif command == 'graph':
+    g = view.draw_graph()
+    g.set_group_colors(section_colors)
+elif command == 'cylinders':
+    g = view.draw_cylinders()
+    g.set_group_colors(section_colors)
 elif command == 'vm':
     
     # Render animation of membrane voltage

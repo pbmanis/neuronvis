@@ -19,8 +19,7 @@ class HocReader(object):
         if isinstance(hoc, basestring):
             fullfile = os.path.join(os.getcwd(), hoc)
             if not os.path.isfile(fullfile):
-                print "File not found: %s" % (fullfile)
-                return
+                raise Exception("File not found: %s" % (fullfile))
             success = neuron.h.load_file(1, fullfile)
             if success == 0: # indicates failure to read the file
                 raise NameError("Found file, but NEURON load failed: %s" % (fullfile))
@@ -46,10 +45,21 @@ class HocReader(object):
         
         # populate self.sections and self.mechanisms
         self._read_section_info()
-        self.find_section_groups()
-        if len(self.sec_groups) == 0: # did not find section groups that way, so use names instead
-            names = self.get_sections()
-            self.read_hoc_section_lists(names.keys())
+        
+        # auto-generate section groups based on either hoc section lists, or
+        # on section name prefixes.
+        sec_lists = self.get_section_lists()
+        sec_prefixes = self.get_section_prefixes()
+
+        
+        # Add groupings by section list if possible:
+        if len(sec_lists) > 1:
+            self.add_groups_by_section_list(sec_lists)
+            
+        # Otherwise, try section prefixes
+        elif len(sec_prefixes) > 1:
+            for group, sections in sec_prefixes.items():
+                self.add_section_group(group, sections)
 
 
     def update(self):
@@ -68,22 +78,27 @@ class HocReader(object):
             raise KeyError("No section named '%s'" % sec_name)
 
 
-    def get_sections(self):
+    def get_section_prefixes(self):
         """
-        go through all the sections and find the names of the sections and all of their
-        parts (ids). Returns a dict, of sec: [id0, id1...]
-
+        Go through all the sections and generate a dictionary mapping their
+        name prefixes to the list of sections with that prefix. 
+        
+        For example, with sections names axon[0], axon[1], ais[0], and soma[0],
+        we would generate the following structure:
+        
+            {'axon': ['axon[0]', 'axon[1]'],
+             'ais':  ['ais[0]'],
+             'soma': ['soma[0]']}
         """
-        secnames = {}
-        resec = re.compile('(\w+)\[(\d*)\]')
-        for sec in self.h.allsec():
-            g = resec.match(sec.name())
-            if g.group(1) not in secnames.keys():
-                secnames[g.group(1)] = [int(g.group(2))]
-            else:
-                secnames[g.group(1)].append(int(g.group(2)))
-        return secnames
-
+        prefixes = {}
+        regex = re.compile('(?P<prefix>\w+)\[(\d*)\]')
+        for sec_name in self.sections:
+            g = regex.match(sec_name)
+            if g is None:
+                continue
+            prefix = g.group('prefix')
+            prefixes.setdefault(prefix, []).append(sec_name)
+        return prefixes
 
     def get_mechanisms(self, section):
         """
@@ -170,32 +185,49 @@ class HocReader(object):
                     mechs.add(mech.name())
             self.mechanisms[sec.name()] = mechs
 
-    def find_section_groups(self):
+    def hoc_namespace(self):
         """
-        Search through all of the hoc variables to find those that are "SectionLists"
-        If a sectionList is found, then calls add_section_group to build the "grouping"
-        lists. The name is pulled from the hoc name assigned to the SectionList, and the
-        contents of the group are the hoc sections that are part of that group
+        Return a dict of the HOC namespace {'variable_name': hoc_object}.
+        NOTE: this method requires NEURON >= 7.3
         """
-        sid = re.compile('(?P<sectionlist>SectionList\[\d+\])')
+        names = {}
         for hvar in dir(self.h): # look through the whole list, no other way
             try:
-                if hvar in ['nseg']: # some variables can't be pointed to...
+                # some variables can't be pointed to...
+                if hvar in ['nseg', 'diam_changed', 'nrn_shape_changed_', 
+                            'secondorder', 'stoprun']: 
                     continue
                 u = getattr(self.h, hvar)
-                hname = u.hname()
+                names[hvar] = u
             except:
                 continue
+        return names
+    
+    def find_hoc_hname(self, regex):
+        """
+        Return a list of the names of HOC objects whose *hname* matches regex.        
+        """
+        objs = []
+        ns = self.hoc_namespace()
+        for n, v in ns.items():
+            try:
+                hname = v.hname()
+                if re.match(regex, hname):
+                    objs.append(n)
+            except:
+                continue
+        return objs
 
-            m = sid.match(hname)
-            sections=[]
-            if m is not None:
-                for v in getattr(self.h, hvar):
-                    sections.append(v)
-                self.add_section_group(hvar, sections)
+
+            # m = sid.match(hname)
+            # sections=[]
+            # if m is not None:
+            #     for v in getattr(self.h, hvar):
+            #         sections.append(v)
+            #     self.add_section_group(hvar, sections)
 
 
-    def add_section_group(self, name, sections):
+    def add_section_group(self, name, sections, overwrite=False):
         """
         Declare a grouping of sections (or section names). Sections may be
         grouped by any arbitrary criteria (cell, anatomical type, etc).
@@ -205,9 +237,9 @@ class HocReader(object):
             sections: list of section names or hoc Section objects.
         
         """
-        assert name not in self.sec_groups
- #       if name in self.sec_groups:
- #           return
+        if name in self.sec_groups and not overwrite:
+            raise Exception("Group name %s is already used (use overwrite=True)." % name)
+        
         group = set()
         for sec in sections:
             if not isinstance(sec, basestring):
@@ -220,8 +252,16 @@ class HocReader(object):
         Return the set of section names in the group *name*.
         """
         return self.sec_groups[name]
+    
+    def get_section_lists(self):
+        """
+        Search through all of the hoc variables to find those that are "SectionLists"
+        """
+        return self.find_hoc_hname(regex=r'SectionList\[')
+        #ns = self.hoc_namespace()
+        #return [name for name in ns if ns[name].hname().startswith('SectionList[')]
         
-    def read_hoc_section_lists(self, names):
+    def add_groups_by_section_list(self, names):
         """
         Add a new section groups from the hoc variables indicated in *names*.
         
@@ -316,21 +356,29 @@ class HocReader(object):
         return (np.array(x),np.array(y),np.array(z),np.array(d))
 
 
-    def make_volume_data(self):
+    def make_volume_data(self, resolution=0.4, max_size=200e6):
         """
         Using the current state of vertexes, edges, generates a scalar field
         useful for building isosurface or volumetric renderings.
+        Input:
+            resolution: width (um) of a single voxel in the scalar field.
+            max_size: maximum allowed scalar field size (bytes).
         Returns:
             * 3D scalar field indicating distance from nearest membrane,
             * 3D field indicating section IDs of nearest membrane,
             * QTransform that maps from 3D array indexes to original vertex 
                 coordinates.
         """
+
         res = 0.5 # resolution of scalar field in microns
         maxdia = 25. # maximum diameter (defines shape of kernel)
         kernel_size = int(maxdia/res) + 1 # width of kernel
         
         vertexes, lines = self.get_geometry()
+        
+        maxdia = vertexes['dia'].max() # maximum diameter (defines shape of kernel)
+        kernel_size = int(maxdia/resolution) + 3 # width of kernel
+        
         
         # read vertex data
         pos = vertexes['pos']
@@ -341,9 +389,12 @@ class HocReader(object):
         mx = pos.max(axis=0)
         mn = pos.min(axis=0)
         diff = mx - mn
-        shape = tuple((diff / res + kernel_size).astype(int))
+        shape = tuple((diff / resolution + kernel_size).astype(int))
 
         # prepare blank scalar field for drawing
+        size = np.dtype(np.float32).itemsize * shape[0] * shape[1] * shape[2]
+        if size > max_size:
+            raise Exception("Scalar field would be larger than max_size (%dMB > %dMB)" % (size/1e6, max_size/1e6))
         scfield = np.zeros(shape, dtype=np.float32)
         scfield[:] = -1000
         
@@ -354,14 +405,14 @@ class HocReader(object):
         # map vertex locations to voxels
         vox_pos = pos.copy()
         vox_pos -= mn.reshape((1,3))
-        vox_pos *= 1./res
+        vox_pos *= 1./resolution
 
         # Define kernel used to draw scalar field along dendrites
         def cone(i,j,k):
             # value decreases linearly with distance from center of kernel.
             w = kernel_size / 2
             return w - ((i-w)**2 + (j-w)**2 + (k-w)**2)**0.5
-        kernel = res * np.fromfunction(cone, (kernel_size,)*3)
+        kernel = resolution * np.fromfunction(cone, (kernel_size,)*3)
         kernel -= kernel.max()
 
         def array_intersection(arr1, arr2, pos):
@@ -408,8 +459,8 @@ class HocReader(object):
                 
         # return transform relating volume data to original vertex data
         transform = pg.Transform3D()
-        w = res * kernel_size / 2 # offset introduced due to kernel
+        w = resolution * kernel_size / 2 # offset introduced due to kernel
         transform.translate(*(mn-w))
-        transform.scale(res, res, res)
+        transform.scale(resolution, resolution, resolution)
         transform.translate(1, 1, 1)
         return scfield, idfield, transform
