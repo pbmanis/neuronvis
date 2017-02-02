@@ -24,7 +24,9 @@ class HocViewer(gl.GLViewWidget):
         self.setCameraPosition(distance=200., elevation=45., azimuth=45.)
 
         self.g = gl.GLGridItem()
-        self.g.scale(2,2,1)
+        self.g.setSize(x=100., y=100., z=100.)  # 100 um grid spacing
+        self.g.setSpacing(x=10., y=10., z=10.)  # 10 um steps
+        self.g.scale(1,1,1)  # uniform scale
         self.addItem(self.g)
         
         self.graphics = []
