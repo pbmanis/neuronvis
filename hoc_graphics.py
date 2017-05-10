@@ -56,6 +56,8 @@ class HocGraphic(object):
         HocReader.sections.
         """
         raise NotImplementedError()
+
+
     
     def set_group_colors(self, colors, default_color=(0.5,0.5,0.5,0.5), alpha=None, mechanism=None):
         """
@@ -75,6 +77,18 @@ class HocGraphic(object):
             try:
                 sections = self.h.get_section_group(group_name)
             except KeyError:
+                continue            
+            for sec_name in sections:
+                if mechanism is not None:
+                    g = self.h.get_density(self.h.sections[sec_name], mechanism)
+#                    print 'section: %s, gmax = %f' % (sec_name, g)
+                    mechmax  = max(mechmax, g)
+        print 'Max for mech %s: %f' % (mechanism, mechmax)
+
+        for group_name, color in colors.items():
+            try:
+                sections = self.h.get_section_group(group_name)
+            except KeyError:
                 continue
             
             for sec_name in sections:
@@ -84,14 +98,15 @@ class HocGraphic(object):
                 sec_colors[index] = color
                 if mechanism is not None:
                     g = self.h.get_density(self.h.sections[sec_name], mechanism)
-                    print 'section: %s, gmax = %f' % (sec_name, g)
                     mechmax  = max(mechmax, g)
-                    sec_colors[index,3] = g
-                elif alpha is not None:
-                    sec_colors[index, 3] = alpha
-            print mechmax
-        if mechanism is not None and mechmax > 0:
-            sec_colors[:,3] = 0.05 + 0.95*sec_colors[:,3]/mechmax # set alpha for all sections
+                    #sec_colors[index,3] = 0.1 + 0.90*g/mechmax
+                    rgb = pg.mkPen(.1 + 0.90*g/mechmax).color().getRgb()
+                    sec_colors[index, :] = rgb
+                    #print 'section: %s  g/mechmax=%f' % (sec_name, g/mechmax)
+#                if mechanism is None and alpha is not None:
+#                    sec_colors[index, 3] = alpha
+#        if mechanism is not None and mechmax > 0:
+#            sec_colors[:,3] = 0.05 + 0.95*sec_colors[:,3]/mechmax # set alpha for all sections by mechanism, scaled
         self.set_section_colors(sec_colors)
 
 
@@ -248,6 +263,7 @@ class HocCylinders(gl.GLMeshItem, HocGraphic):
         gl.GLMeshItem.__init__(self, meshdata=md, shader='shaded')
             
     def set_section_colors(self, sec_colors):
+        print 'cylinders set setcion colors'
         colors = sec_colors[self.vertex_sec_ids]
         self.opts['meshdata'].setVertexColors(colors, indexed='faces')
         self.meshDataChanged()

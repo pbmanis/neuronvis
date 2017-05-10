@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__author__ = 'pbmanis'
+
 """
 hocRender : provide visual rendering for morphology and other attributes
 as stored in a "hoc" file.
@@ -93,8 +93,11 @@ print 'hoc: ', hoc
 ##########################################################
 
 section_colors = {
-    'axon': 'r', 
-    'hillock': 'g',
+    'axon': 'g', 
+    'hillock': 'r',
+    'initialsegment': 'orange',
+    'myelinatedaxon': 'white',
+    'unmyelinatedaxon': 'orange',
     'soma': 'b',
     'somatic': 'b',
     'apic': 'y',
