@@ -1,7 +1,9 @@
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
+from pyqtgraph.Qt import QtGui
 import numpy as np
 import scipy.ndimage
+import mpl_colormaps as mpc
 
 Colors = { # colormap
     'b': np.array([0,0,255,255])/255.,
@@ -34,15 +36,13 @@ Colors = { # colormap
 colorMap = ['b', 'g', 'r', 'c', 'y', 'm', 'powderblue', 'brown', 'orange', 'pink']
 
 
-
-
 class HocGraphic(object):
     """
     Methods common to all Hoc graphical representation classes (HocVolume, 
     HocSurface, etc.)
     
     """
-    def __init__(self, h):
+    def __init__(self, h, colormap='magma'):
         self.h = h
 
     def get_color_map(self, i):
@@ -57,23 +57,38 @@ class HocGraphic(object):
         """
         raise NotImplementedError()
 
-
-    
-    def set_group_colors(self, colors, default_color=(0.5,0.5,0.5,0.5), alpha=None, mechanism=None):
+    def set_group_colors(self, colors, default_color=(0.5,0.5,0.5,0.5), alpha=None, mechanism=None, colormap='magma'):
         """
         Color the sections in the reconstruction according to their
         group name.
-        Inputs: 
-            colors: a dictionary of section group names and their associated colors
-            default_color: color to use for any sections that are not included in the
-                           groups listed in *colors*.
-            alpha: If specified, this overrides the alpha value for all group colors.
+        
+        Parameters
+        ----------
+        colors: dict (no default)
+            a dictionary of section group names and their associated colors
+        
+        default_color: tuple (default: (0.5, 0.5, 0.5, 0.5)
+            color to use for any sections that are not included in the
+            groups listed in *colors*.
+        
+        alpha: float (default: None)
+            If specified, this overrides the alpha value for all group colors.
+        
+        mechanism: str (default: None)
+            Name of the mechanism to use for coloring; scaled to maximum of mechanism
+            conductance density in the hoc object.
+        
+        Returns
+        -------
+        Nothing
+        
         Side-effects: none.
         """
+        self.colormap = colormap
         sec_colors = np.zeros((len(self.h.sections), 4), dtype=float)
         sec_colors[:] = default_color
         mechmax = 0.
-        for group_name, color in colors.items():
+        for group_name, color in colors.items():  # identify max for scaling
             try:
                 sections = self.h.get_section_group(group_name)
             except KeyError:
@@ -81,33 +96,41 @@ class HocGraphic(object):
             for sec_name in sections:
                 if mechanism is not None:
                     g = self.h.get_density(self.h.sections[sec_name], mechanism)
-#                    print 'section: %s, gmax = %f' % (sec_name, g)
                     mechmax  = max(mechmax, g)
-        print 'Max for mech %s: %f' % (mechanism, mechmax)
-
-        for group_name, color in colors.items():
+        for group_name, color in colors.items(): # now color the mechanisms... 
             try:
                 sections = self.h.get_section_group(group_name)
             except KeyError:
                 continue
-            
-            for sec_name in sections:
+            for i, sec_name in enumerate(sections):
                 if isinstance(color, basestring):
                     color = Colors[color]
                 index = self.h.sec_index[sec_name]
-                sec_colors[index] = color
                 if mechanism is not None:
                     g = self.h.get_density(self.h.sections[sec_name], mechanism)
                     mechmax  = max(mechmax, g)
-                    #sec_colors[index,3] = 0.1 + 0.90*g/mechmax
-                    rgb = pg.mkPen(.1 + 0.90*g/mechmax).color().getRgb()
-                    sec_colors[index, :] = rgb
-                    #print 'section: %s  g/mechmax=%f' % (sec_name, g/mechmax)
-#                if mechanism is None and alpha is not None:
-#                    sec_colors[index, 3] = alpha
-#        if mechanism is not None and mechmax > 0:
-#            sec_colors[:,3] = 0.05 + 0.95*sec_colors[:,3]/mechmax # set alpha for all sections by mechanism, scaled
+                    scaled_g = (0.0 + (1.0*g/mechmax))
+                    sec_colors[index, :] = [c/255. for c in mpc.mpl_cm[self.colormap].map(scaled_g)]
+                else:
+                    sec_colors[index] = color
         self.set_section_colors(sec_colors)
+        # make a new window with just the color scale on it in case we need it.
+        # Assign color based on height
+        # Make a 2D color bar using the same ColorMap
+        colorBar = pg.GradientLegend(size=(50, 200), offset=(15, -25))
+        colorBar.setGradient(mpc.mpl_cm[self.colormap].getGradient())
+        labels = dict([("%0.5f" % (v * scaled_g), v) for v in np.linspace(0, 1, 4)])
+        colorBar.setLabels(labels)
+
+        w = QtGui.QWidget()
+        layout = QtGui.QGridLayout()
+        w.setLayout(layout)
+        w.resize(200,200)
+        w.show()
+        view = pg.GraphicsView()
+        view.addItem(colorBar)
+        layout.addWidgetview, 0, 0)
+        print 'view show...'
 
 
 class HocVolume(gl.GLVolumeItem, HocGraphic):
@@ -115,20 +138,37 @@ class HocVolume(gl.GLVolumeItem, HocGraphic):
     Subclass of GLVolumeItem that draws a volume representation of the geometry
     specified by a HocReader.
     
-    Input:
+    Parameters
+    ----------
         h: HocReader instance
     """
+    
     def __init__(self, h):
         self.h = h
         scfield, idfield, transform = self.h.make_volume_data()
         nfdata = np.empty(scfield.shape + (4,), dtype=np.ubyte)
-        nfdata[...,0] = 255 #scfield*50
-        nfdata[...,1] = 255# scfield*50
-        nfdata[...,2] = 255# scfield*50
-        nfdata[...,3] = np.clip(scfield*150, 0, 255)
+        nfdata[...,0] = 255
+        nfdata[...,1] = 255
+        nfdata[...,2] = 255
+        nfdata[...,3] = np.clip(scfield*200, 0, 255)
         super(HocVolume, self).__init__(nfdata)
         self.setTransform(transform)
 
+    def set_section_colors(self, sec_colors):
+        """
+        Set the colors of multiple sections.
+        
+        (inactive: there are no vertex section ids to work with...)
+        Parameters
+        ----------
+        colors: tuple (N,4) (no default)
+            float array of (r,g,b,a) colors, in the order that
+            sections are defined by the HocReader.
+        """
+        return
+        # colors = sec_colors[self.vertex_sec_ids]
+        # self.opts['meshdata'].setVertexColors(colors)
+        # self.meshDataChanged()
 
 class HocSurface(gl.GLMeshItem, HocGraphic):
     """
@@ -137,15 +177,17 @@ class HocSurface(gl.GLMeshItem, HocGraphic):
     the scalar field generated by measuring the minimum distance from all
     cell membranes across the volume of the cell.
     
-    Input:
+    Parameters
+    ----------
         h: HocReader instance
+    
     """
     def __init__(self, h):
         self.h = h
         scfield, idfield, transform = self.h.make_volume_data()
         #scfield = scipy.ndimage.gaussian_filter(scfield, (0.5, 0.5, 0.5))
         #pg.image(scfield)
-        verts, faces = pg.isosurface(scfield, level=0.0)
+        verts, faces = pg.isosurface(scfield, level=-0.02)
         self.verts = verts
         self.faces = faces
         vertexColors = np.empty((verts.shape[0], 4), dtype=float)
@@ -156,14 +198,26 @@ class HocSurface(gl.GLMeshItem, HocGraphic):
         # get sction IDs for each vertex
         self.vertex_sec_ids = idfield[vox_locations[:,0], vox_locations[:,1], vox_locations[:,2]] 
         
-        super(HocSurface, self).__init__(meshdata=md, smooth=True, shader='balloon')
+        super(HocSurface, self).__init__(meshdata=md, smooth=True, shader='shaded')  # 'normalColor', viewNormaCOlor, shaded, balloon
         self.setTransform(transform)
-        self.setGLOptions('additive')
+        self.setGLOptions('opaque') #('additive')
 
     def show_section(self, sec_id, color=(1, 1, 1, 1), bg_color=(1, 1, 1, 0)):
         """
         Set the color of section named *sec_id* to *color*.
         All other sections are colored with *bg_color*.
+        
+        Parameters
+        ----------
+        sec_id : int (no default)
+            Section ID whose colors will be set
+        
+        color : tuple (default: (1,1,1,1))
+            color in RGBA format (range [0-1]) to set the sections to
+        
+        bg_color : tuple (default: (1,1,1,0))
+            background color for all sections that are not being colored
+        
         """
         colors = np.empty((len(self.vertex_sec_ids), 4))
         colors[:] = bg_color
@@ -174,8 +228,10 @@ class HocSurface(gl.GLMeshItem, HocGraphic):
         """
         Set the colors of multiple sections.
         
-        Input:
-            colors: (N,4) float array of (r,g,b,a) colors, in the order that
+        Parameters
+        ----------
+        colors: tuple (N,4) 
+            float array of (r,g,b,a) colors, in the order that
                     sections are defined by the HocReader.
         """
         colors = sec_colors[self.vertex_sec_ids]
@@ -189,7 +245,8 @@ class HocGraph(gl.GLLinePlotItem, HocGraphic):
     Subclass of GLLinePlotItem that draws a line representation of the geometry
     specified by a HocReader.
     
-    Input:
+    Parameters
+    ----------
         h: HocReader instance
     """
     def __init__(self, h):
@@ -211,6 +268,15 @@ class HocGraph(gl.GLLinePlotItem, HocGraphic):
             #self.lines[-1].setParentItem(self)
 
     def set_section_colors(self, sec_colors):
+        """
+        Set the colors of multiple sections.
+        
+        Parameters
+        ----------
+        colors: tuple (N,4) 
+            float array of (r,g,b,a) colors, in the order that
+                    sections are defined by the HocReader.
+        """
         colors = sec_colors[self.vertex_sec_ids]
         self.setData(color=colors)
         
@@ -220,10 +286,11 @@ class HocCylinders(gl.GLMeshItem, HocGraphic):
     Subclass of GLMesgItem that draws a cylinder representation of the geometry
     specified by a HocReader.
     
-    Input:
+    Parameters
+    ----------
         h: HocReader instance
     """
-    def __init__(self, h):
+    def __init__(self, h, facets=8):
         self.h = h
         verts, edges = h.get_geometry()
         
@@ -237,7 +304,7 @@ class HocCylinders(gl.GLMeshItem, HocGraphic):
             dif = ends[1]-ends[0]
             length = (dif**2).sum() ** 0.5
             
-            mesh = gl.MeshData.cylinder(rows=1, cols=8, radius=[dia[0]/2., dia[1]/2.], length=length)
+            mesh = gl.MeshData.cylinder(rows=8, cols=facets, radius=[dia[0]/2., dia[1]/2.], length=length)
             mesh_verts = mesh.vertexes(indexed='faces')
             
             # Rotate cylinder vertexes to match segment
@@ -263,7 +330,15 @@ class HocCylinders(gl.GLMeshItem, HocGraphic):
         gl.GLMeshItem.__init__(self, meshdata=md, shader='shaded')
             
     def set_section_colors(self, sec_colors):
-        print 'cylinders set setcion colors'
+        """
+        Set the colors of multiple sections.
+        
+        Parameters
+        ----------
+        colors: tuple (N,4) 
+            float array of (r,g,b,a) colors, in the order that
+                    sections are defined by the HocReader.
+        """
         colors = sec_colors[self.vertex_sec_ids]
         self.opts['meshdata'].setVertexColors(colors, indexed='faces')
         self.meshDataChanged()
