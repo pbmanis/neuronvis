@@ -97,6 +97,7 @@ class HocGraphic(object):
                 if mechanism is not None:
                     g = self.h.get_density(self.h.sections[sec_name], mechanism)
                     mechmax  = max(mechmax, g)
+        print colors.items()
         for group_name, color in colors.items(): # now color the mechanisms... 
             try:
                 sections = self.h.get_section_group(group_name)
@@ -113,6 +114,7 @@ class HocGraphic(object):
                     sec_colors[index, :] = [c/255. for c in mpc.mpl_cm[self.colormap].map(scaled_g)]
                 else:
                     sec_colors[index] = color
+                    scaled_g = 0.01
         self.set_section_colors(sec_colors)
         # make a new window with just the color scale on it in case we need it.
         # Assign color based on height
@@ -121,6 +123,8 @@ class HocGraphic(object):
         colorBar.setGradient(mpc.mpl_cm[self.colormap].getGradient())
         labels = dict([("%0.5f" % (v * scaled_g), v) for v in np.linspace(0, 1, 4)])
         colorBar.setLabels(labels)
+        
+        pg.setConfigOption('background', 'w')  # set background to white
 
         w = QtGui.QWidget()
         layout = QtGui.QGridLayout()
@@ -129,7 +133,7 @@ class HocGraphic(object):
         w.show()
         view = pg.GraphicsView()
         view.addItem(colorBar)
-        layout.addWidgetview, 0, 0)
+        layout.addWidget(view, 0, 0)
         print 'view show...'
 
 

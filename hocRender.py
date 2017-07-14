@@ -95,7 +95,7 @@ print 'hoc: ', hoc
 section_colors = {
     'axon': 'g', 
     'hillock': 'r',
-    'initialsegment': 'orange',
+    'initialsegment': 'c',
     'myelinatedaxon': 'white',
     'unmyelinatedaxon': 'orange',
     'soma': 'b',
