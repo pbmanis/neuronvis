@@ -3,6 +3,7 @@ import pyqtgraph.opengl as gl
 import numpy as np
 from hoc_reader import HocReader
 from hoc_graphics import *
+from pyqtgraph.Qt import QtGui
 
 class HocViewer(gl.GLViewWidget):
     """
@@ -12,23 +13,25 @@ class HocViewer(gl.GLViewWidget):
     Input:
         h: HocReader instance or "xxxx.hoc" file name
     """
-    def __init__(self, hoc):
+    def __init__(self, hoc, camerapos=[200., 45., 45.]):
         if not isinstance(hoc, HocReader):
             hoc = HocReader(hoc)
         self.hr = hoc
         pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
         super(HocViewer, self).__init__()
         self.resize(720,720)
+        self.setBackgroundColor(pg.glColor(pg.mkColor(0, 0, 0)))
         self.show()
         self.setWindowTitle('hocViewer')
-        self.setCameraPosition(distance=200., elevation=45., azimuth=45.)
-        self.setBackgroundColor((0.5, 0.5, 0.5, 0.25))
-
-        self.g = gl.GLGridItem(color=pg.mkPen(0.5))
-        self.g.setSize(x=100., y=100., z=100.)  # 100 um grid spacing
-        self.g.setSpacing(x=10., y=10., z=10.)  # 10 um steps
-        self.g.scale(1,1,1)  # uniform scale
-        self.addItem(self.g)
+        self.setCameraPosition(distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2])
+#        print dir(self)
+        self.grid = gl.GLGridItem(color=pg.mkColor(128, 128, 128))
+        print dir(self.grid)
+        self.grid.setSize(x=40., y=40., z=40.)  # 100 um grid spacing
+        self.grid.setSpacing(x=20., y=20., z=20.)  # 10 um steps
+        self.grid.scale(1,1,1)  # uniform scale
+        self.grid.translate(100., 0., 0.)
+        self.addItem(self.grid)
         
         self.graphics = []
         self.video_file = None
@@ -86,7 +89,7 @@ class HocViewer(gl.GLViewWidget):
         self.addItem(g)
         return g
 
-    def save_frame(self, filename=None):
+    def save_frame(self, file_name=None):
         """
         Save the currently visible frame to a file. 
         If no file name is given, then the frame is added on to the currently-
@@ -107,7 +110,7 @@ class HocViewer(gl.GLViewWidget):
             img = pg.imageToArray(self.readQImage())
             self.video_file.write(img)
         else:
-            self.readQImage().save(filename)
+            self.readQImage().save(file_name)
         print 'Saved frame to file: ', file_name
 
     

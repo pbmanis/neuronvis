@@ -72,6 +72,8 @@ class HocReader(object):
         """
         Return the hoc Section object with the given name.
         """
+        print('secname: ', sec_name)
+        print('known sections: ', self.sections.keys())
         try:
             return self.sections[sec_name]
         except KeyError:

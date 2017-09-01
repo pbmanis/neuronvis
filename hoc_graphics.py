@@ -123,15 +123,14 @@ class HocGraphic(object):
         colorBar.setGradient(mpc.mpl_cm[self.colormap].getGradient())
         labels = dict([("%0.5f" % (v * scaled_g), v) for v in np.linspace(0, 1, 4)])
         colorBar.setLabels(labels)
-        
-        pg.setConfigOption('background', 'w')  # set background to white
-
+        #pg.setConfigOption('background', 'w')  # set background to white
+        #pg.opengl.GLViewWidget.setBackGroundColor('w')
         w = QtGui.QWidget()
         layout = QtGui.QGridLayout()
         w.setLayout(layout)
         w.resize(200,200)
         w.show()
-        view = pg.GraphicsView()
+        view = pg.GraphicsView() # background=(0.3, 0.3, 0.3, 1.0))
         view.addItem(colorBar)
         layout.addWidget(view, 0, 0)
         print 'view show...'
@@ -204,7 +203,7 @@ class HocSurface(gl.GLMeshItem, HocGraphic):
         
         super(HocSurface, self).__init__(meshdata=md, smooth=True, shader='shaded')  # 'normalColor', viewNormaCOlor, shaded, balloon
         self.setTransform(transform)
-        self.setGLOptions('opaque') #('additive')
+        self.setGLOptions('opaque')# ('additive') # ('opaque')
 
     def show_section(self, sec_id, color=(1, 1, 1, 1), bg_color=(1, 1, 1, 0)):
         """
