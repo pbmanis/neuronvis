@@ -77,6 +77,7 @@ class HocGraphic(object):
         mechanism: str (default: None)
             Name of the mechanism to use for coloring; scaled to maximum of mechanism
             conductance density in the hoc object.
+            if None, we color by distance from soma
         
         Returns
         -------
@@ -84,6 +85,13 @@ class HocGraphic(object):
         
         Side-effects: none.
         """
+        self.h.h('access %s' % 'sections[0]') # reference point
+        self.h.h.distance()
+        self.distanceMap = {}
+        for u in self.h.sections:
+            self.h.h('access %s' % u)
+            self.distanceMap[u] = self.h.h.distance(0.5) # should be distance from first point
+        
         self.colormap = colormap
         sec_colors = np.zeros((len(self.h.sections), 4), dtype=float)
         sec_colors[:] = default_color
@@ -97,40 +105,57 @@ class HocGraphic(object):
                 if mechanism is not None:
                     g = self.h.get_density(self.h.sections[sec_name], mechanism)
                     mechmax  = max(mechmax, g)
-        print colors.items()
-        for group_name, color in colors.items(): # now color the mechanisms... 
-            try:
-                sections = self.h.get_section_group(group_name)
-            except KeyError:
-                continue
-            for i, sec_name in enumerate(sections):
-                if isinstance(color, basestring):
-                    color = Colors[color]
-                index = self.h.sec_index[sec_name]
-                if mechanism is not None:
-                    g = self.h.get_density(self.h.sections[sec_name], mechanism)
-                    mechmax  = max(mechmax, g)
-                    scaled_g = (0.0 + (1.0*g/mechmax))
-                    sec_colors[index, :] = [c/255. for c in mpc.mpl_cm[self.colormap].map(scaled_g)]
                 else:
+                    g = self.distanceMap[sec_name]
+                    mechmax = max(mechmax, g)
+#        print colors.items()
+        if mechanism is not None:
+            for group_name, color in colors.items(): # now color the mechanisms... 
+                try:
+                    sections = self.h.get_section_group(group_name)
+                except KeyError:
+                    continue
+                for i, sec_name in enumerate(sections):
+                    if isinstance(color, basestring):
+                        color = Colors[color]
+                    index = self.h.sec_index[sec_name]
+                    if mechanism[0] is not None:
+                        g = self.h.get_density(self.h.sections[sec_name], mechanism)
+                        mechmax  = max(mechmax, g)
+                        scaled_g = (0.0 + (1.0*g/mechmax))
+                        sec_colors[index, :] = [c/255. for c in mpc.mpl_cm[self.colormap].map(scaled_g)]
+                    else:
+                        sec_colors[index] = color
+                        scaled_g = 0.01
+        else:  # color by group type
+            for group_name, color in colors.items():
+                try:
+                    sections = self.h.get_section_group(group_name)
+                except KeyError:
+                    continue
+                for i, sec_name in enumerate(sections):
+                    if isinstance(color, basestring):
+                        color = Colors[color]
+                    index = self.h.sec_index[sec_name]
                     sec_colors[index] = color
-                    scaled_g = 0.01
+
         self.set_section_colors(sec_colors)
         # make a new window with just the color scale on it in case we need it.
         # Assign color based on height
         # Make a 2D color bar using the same ColorMap
         colorBar = pg.GradientLegend(size=(50, 200), offset=(15, -25))
         colorBar.setGradient(mpc.mpl_cm[self.colormap].getGradient())
-        labels = dict([("%0.5f" % (v * scaled_g), v) for v in np.linspace(0, 1, 4)])
-        colorBar.setLabels(labels)
-        #pg.setConfigOption('background', 'w')  # set background to white
-        #pg.opengl.GLViewWidget.setBackGroundColor('w')
+        if mechanism is not None:
+            labels = dict([("%0.5f" % (v * scaled_g), v) for v in np.linspace(0, 1, 4)])
+        else:
+            labels = dict([("%s" % (gn), i) for i, gn in enumerate(colors)])
+        colorBar.setLabels(labels)            
         w = QtGui.QWidget()
         layout = QtGui.QGridLayout()
         w.setLayout(layout)
         w.resize(200,200)
         w.show()
-        view = pg.GraphicsView() # background=(0.3, 0.3, 0.3, 1.0))
+        view = pg.GraphicsView() 
         view.addItem(colorBar)
         layout.addWidget(view, 0, 0)
         print 'view show...'
@@ -258,17 +283,17 @@ class HocGraph(gl.GLLinePlotItem, HocGraphic):
         verts, edges = h.get_geometry()
         
         # Prefer this method, but item does not support per-vertex width:
-        edges = edges.flatten()
-        verts_indexed = verts[edges]
+
+        verts_indexed = verts[edges.flatten()]
         self.vertex_sec_ids = verts_indexed['sec_index']
         super(HocGraph, self).__init__(pos=verts_indexed['pos'], mode='lines')
-        
-        # 
-        #self.lines = []
-        #for edge in edges:
-            #w = (verts['dia'][edge[0]] + verts['dia'][edge[1]]) * 0.5
-            #self.lines.append(gl.GLLinePlotItem(pos=verts['pos'][edge], width=w))
-            #self.lines[-1].setParentItem(self)
+ 
+        self.lines = []
+        for edge in edges:
+            w = 2*(verts['dia'][edge[0]] + verts['dia'][edge[1]]) * 0.5
+            self.lines.append(gl.GLLinePlotItem(pos=verts['pos'][edge], width=w, #color=(0,0,0,1),
+                mode='line_strip', antialias=True))
+            self.lines[-1].setParentItem(self)
 
     def set_section_colors(self, sec_colors):
         """

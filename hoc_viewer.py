@@ -20,13 +20,14 @@ class HocViewer(gl.GLViewWidget):
         pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
         super(HocViewer, self).__init__()
         self.resize(720,720)
-        self.setBackgroundColor(pg.glColor(pg.mkColor(0, 0, 0)))
+        #self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
+        # color='w'
+        # self.setBackgroundColor(color)
         self.show()
         self.setWindowTitle('hocViewer')
         self.setCameraPosition(distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2])
-#        print dir(self)
         self.grid = gl.GLGridItem(color=pg.mkColor(128, 128, 128))
-        print dir(self.grid)
+
         self.grid.setSize(x=40., y=40., z=40.)  # 100 um grid spacing
         self.grid.setSpacing(x=20., y=20., z=20.)  # 10 um steps
         self.grid.scale(1,1,1)  # uniform scale
@@ -36,7 +37,15 @@ class HocViewer(gl.GLViewWidget):
         self.graphics = []
         self.video_file = None
 
+    def setBackcolor(self, color):
+        self.setBackgroundColor(color)
 
+    def setCamera(self, distance=200., elevation=45., azimuth=45.):
+        self.setCarenmeraPosition(distance=distance, elevation=elevation, azimuth=azimuth)
+    
+    def resetGrid(self, x=40., y=40., z=40.):
+        self.grid.setSize(x=x, y=y, z=z)  # 100 um grid spacing        
+    
     def draw_volume(self):
         """
         Add a HocVolume graphic to this view.
