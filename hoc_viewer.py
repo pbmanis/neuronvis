@@ -22,7 +22,8 @@ class HocViewer(gl.GLViewWidget):
         pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
         super(HocViewer, self).__init__()
         self.resize(720,720)
-        #self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
+        # self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
+        # self.setBackgroundColor(pg.glColor(pg.mkColor(0, 0, 0, 0)))
         # color='w'
         # self.setBackgroundColor(color)
         self.show()
@@ -66,6 +67,7 @@ class HocViewer(gl.GLViewWidget):
         -------
           HocVolume instance
         """
+        raise Exception('Not implemented')
         g = HocVolume(self.hr)
         self.graphics.append(g)
         self.addItem(g)

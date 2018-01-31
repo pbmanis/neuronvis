@@ -133,12 +133,10 @@ class HocGraph(HocGraphic, gl.GLLinePlotItem):
         # 
         self.lines = []
         for edge in edges:
-            print verts['dia']
             w = (verts['dia'][edge[0]] + verts['dia'][edge[1]]) * 0.5
             self.lines.append(gl.GLLinePlotItem(pos=verts['pos'][edge], width=w))
             self.lines[-1].setParentItem(self)
-#        super(HocGraph, self).__init__(h)
-        #super(HocGraph, self).__init__(h, pos=verts_indexed['pos'], mode='lines')
+        super(HocGraph, self).__init__(h, pos=verts_indexed['pos'], mode='lines')
 
     def set_section_colors(self, sec_colors):
         colors = sec_colors[self.vertex_sec_ids]
@@ -154,6 +152,7 @@ class HocVolume(HocGraphic, gl.GLVolumeItem):
         h: HocReader instance
     """
     def __init__(self, h):
+        super(HocGraphic, self).__init__()
         self.h = h
         scfield, idfield, transform = self.h.make_volume_data()
         nfdata = np.empty(scfield.shape + (4,), dtype=np.ubyte)
@@ -177,6 +176,7 @@ class HocSurface(HocGraphic, gl.GLMeshItem):
     """
     def __init__(self, h):
         super(HocGraphic, self).__init__()
+        super(HocSurface, self).__init__(h)
         self.h = h
         scfield, idfield, transform = self.h.make_volume_data()
         #scfield = scipy.ndimage.gaussian_filter(scfield, (0.5, 0.5, 0.5))
@@ -191,8 +191,6 @@ class HocSurface(HocGraphic, gl.GLMeshItem):
         vox_locations = verts.astype(int)
         # get sction IDs for each vertex
         self.vertex_sec_ids = idfield[vox_locations[:,0], vox_locations[:,1], vox_locations[:,2]] 
-        #glm = gl.GLMeshItem(meshdata=md, smooth=True, shader='balloon')
-         # meshdata=md, smooth=True, shader='balloon')
         self.setMeshData(meshdata=md, smooth=True, shader='balloon')
         self.setTransform(transform)
         self.setGLOptions('additive')
@@ -413,9 +411,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
             tr = pg.Transform3D()
             tr.translate(ends[0][0], ends[0][1], ends[0][2]) # move into position
             tr.rotate(ang, axis.x(), axis.y(), axis.z())
-            
             mesh_verts = pg.transformCoordinates(tr, mesh_verts, transpose=True)
-            
             sec_id_array = np.empty(mesh_verts.shape[0]*3, dtype=int)
             sec_id_array[:] = sec_id
             meshes.append(mesh_verts)
