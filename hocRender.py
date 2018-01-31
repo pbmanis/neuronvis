@@ -1,5 +1,5 @@
 #!/usr/bin/python
-__author__ = 'pbmanis'
+
 """
 hocRender : provide visual rendering for morphology and other attributes
 as stored in a "hoc" file.
@@ -25,6 +25,7 @@ the hoc file connection structure (specifically: getSectionInfo, and parts of dr
 
 
 import os, sys, pickle
+os.environ['PYQTGRAPH_QT_LIB'] = 'PyQt5' 
 import pyqtgraph as pg
 import numpy as np
 
@@ -34,6 +35,10 @@ commands = {
     'vm': "Animation of per-section membrane voltage over time.",
     'graph': "Simple wireframe rendering.",
     'cylinders': "Simple cylinder rendering.",
+    'volume': "simple volume rendering",
+    'surface': "uncolored surface rendering.",
+    'mpl': "render using matplotlib",
+    'vispy': 'render using vispy'
     }
 
 # Handle command line arguments.
@@ -85,16 +90,19 @@ import hoc_graphics
 
 hoc = HocReader(hoc_file)
 view = HocViewer(hoc)
-print 'hoc file: ', hoc_file
-print 'hoc: ', hoc
+# print 'hoc file: ', hoc_file
+# print 'hoc: ', hoc
 
 
 # Handle commands
 ##########################################################
 
 section_colors = {
-    'axon': 'r', 
-    'hillock': 'g',
+    'axon': 'g', 
+    'hillock': 'r',
+    'initialsegment': 'c',
+    'myelinatedaxon': 'white',
+    'unmyelinatedaxon': 'orange',
     'soma': 'b',
     'somatic': 'b',
     'apic': 'y',
@@ -115,16 +123,28 @@ section_colors = {
 print("Section groups:")
 print(view.hr.sec_groups.keys())
 
+if command == 'volume':
+    vol = view.draw_volume()
+if command == 'surface':
+    surf = view.draw_surface()
 if command == 'sec-type':
     # Color sections by type.
     surf = view.draw_surface()
     surf.set_group_colors(section_colors, alpha=0.35)
 elif command == 'graph':
     g = view.draw_graph()
-    g.set_group_colors(section_colors)
+    g.hg.set_group_colors(section_colors)
 elif command == 'cylinders':
     g = view.draw_cylinders()
-    g.set_group_colors(section_colors)
+    # if g is not None:
+    #     g.hg.set_group_colors(section_colors)
+    print('cylinders drawn')
+elif command == 'mpl':
+    g = view.draw_mpl()
+
+elif command == 'vispy':
+    g = view.draw_vispy()
+    
 elif command == 'vm':
     
     # Render animation of membrane voltage
