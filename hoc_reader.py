@@ -1,3 +1,5 @@
+from __future__ import print_function
+from pathlib import Path
 from neuron import h
 import neuron
 import collections
@@ -5,8 +7,8 @@ import numpy as np
 import pyqtgraph as pg
 import os
 import re
+import swc_to_hoc
 
-import os.path
 class HocReader(object):
     """
     Provides useful methods for reading hoc structures.
@@ -14,21 +16,29 @@ class HocReader(object):
     Input:
         hoc: a hoc object or a "xxx.hoc" file name.
     """
-    def __init__(self, hoc):
+    def __init__(self, hoc, somaonly=False):
         self.file_loaded = False
-        if isinstance(hoc, basestring):
-            fullfile = os.path.join(os.getcwd(), hoc)
-            if not os.path.isfile(fullfile):
-                raise Exception("File not found: %s" % (fullfile))
-            success = neuron.h.load_file(1, fullfile)
+        self.somaonly = somaonly
+
+        if isinstance(hoc, str) or isinstance(hoc, Path):  # only python 3 anymore
+            success = 0
+            fullfile = Path(os.getcwd(), hoc)
+            if not fullfile.exists():
+                raise Exception("File not found: %s" % (str(fullfile)))
+            if fullfile.suffix in ['.hoc']:
+                neuron.h.hoc_stdout('/dev/null')  # prevent junk from printing while reading the file
+                success = neuron.h.load_file(str(fullfile))
+                neuron.h.hoc_stdout()
+            else:
+                raise ValueError('File must be a hoc file; use read_swc_cells or swc_to_hoc to convert files')
             if success == 0: # indicates failure to read the file
                 raise NameError("Found file, but NEURON load failed: %s" % (fullfile))
             self.file_loaded = True
             self.h = h # save a copy of the hoc object itself.
+ 
         else:
             self.h = hoc # just use the passed argument
             self.file_loaded = True
-
         # geometry containers
         self.edges = None
         self.vertexes = None
@@ -133,11 +143,11 @@ class HocReader(object):
                 if mecbar in dir(x):
                     gmech.append(getattr(x, mechanism[1]))
                 else:
-                    print 'hoc_reader:get_density did not find the mechanism in dir x'
+                    print('hoc_reader:get_density did not find the mechanism in dir x')
             except NameError:
                 return(0.)
             except:
-                print 'hoc_reader:get_density failed to evaluate the mechanisms... '
+                print('hoc_reader:get_density failed to evaluate the mechanisms... ')
                 raise
 
 
@@ -177,6 +187,8 @@ class HocReader(object):
         self.sections = collections.OrderedDict()
         self.mechanisms = collections.OrderedDict()
         for i, sec in enumerate(self.h.allsec()):
+            # if self.somaonly and not sec.name().startswith('soma'):
+            #     continue
             self.sections[sec.name()] = sec
             self.sec_index[sec.name()] = i
             mechs = set()
@@ -205,7 +217,7 @@ class HocReader(object):
     
     def find_hoc_hname(self, regex):
         """
-        Return a list of the names of HOC objects whose *hname* matches regex.        
+        Return a list of the names of HOC objects whose *hname* matches regex.    
         """
         objs = []
         ns = self.hoc_namespace()
@@ -239,10 +251,12 @@ class HocReader(object):
         """
         if name in self.sec_groups and not overwrite:
             raise Exception("Group name %s is already used (use overwrite=True)." % name)
-        
+        if self.somaonly and name not in ['soma']:
+            # print('not adding to section group: ', name)
+            return
         group = set()
         for sec in sections:
-            if not isinstance(sec, basestring):
+            if not isinstance(sec, str):
                 sec = sec.name()
             group.add(sec)
         self.sec_groups[name] = group
@@ -280,7 +294,8 @@ class HocReader(object):
         for hoc_name, group_name in names.items():
             var = getattr(self.h, hoc_name)
             self.add_section_group(group_name, list(var))
-
+                
+            
 
     def get_geometry(self):
         """
@@ -425,7 +440,7 @@ class HocReader(object):
             s2 = [0]*3
             t1 = [0]*3
             t2 = [0]*3
-            pos = map(int, pos)
+            pos = list(map(int, pos))  # python 3 returns an interator, not a list/tuple
             for axis in range(3):
                 s1[axis] = max(0, -pos[axis])
                 s2[axis] = min(arr2.shape[axis], arr1.shape[axis]-pos[axis])
