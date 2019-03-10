@@ -95,17 +95,21 @@ section_colors = {
 
 class Render(object):
     def __init__(self, command='sec-type', renderer='pyqtgraph', fighandle=None, hoc_file=None, 
-                       sim_data=None, fax=None, somaonly=False, color='blue'):
+                       sim_data=None, fax=None, somaonly=False, color='blue', label=None, flags=None):
 
         self.color = color
         hoc = HocReader(hoc_file, somaonly=somaonly)
         self.renderer = renderer
         self.view = HocViewer(hoc, renderer=renderer, fighandle=fighandle)
- 
+        self.label = label
+        
         # print("Section groups:")
         # print(self.view.hr.sec_groups.keys())
         if command == 'volume':
-            vol = self.view.draw_volume()
+            if renderer == 'pyqtgraph':
+                vol = self.view.draw_volume()
+            if renderer == 'mayavi':
+                vol = self.view.draw_volume_mayavi()
         if command == 'surface':
             surf = self.view.draw_surface()
         if command == 'sec-type':
@@ -120,7 +124,7 @@ class Render(object):
             elif renderer == 'mpl':
                 g = self.view.draw_mpl_graph(fax=fax)
             elif renderer == 'mayavi':
-                g = self.view.draw_mayavi_graph(color=self.color)
+                g = self.view.draw_mayavi_graph(color=self.color, label=label, flags=flags)
         
         elif command == 'cylinders':
             if renderer == 'pyqtgraph':
@@ -128,7 +132,7 @@ class Render(object):
             elif renderer == 'mpl':
                 g = self.view.draw_mpl(fax=fax)
             elif renderer == 'mayavi':
-                g = self.view.draw_mayavi_cylinders(color=self.color)
+                g = self.view.draw_mayavi_cylinders(color=self.color, label=label, flags=flags)
 
         elif command == 'vispy':
             g = self.view.draw_vispy()

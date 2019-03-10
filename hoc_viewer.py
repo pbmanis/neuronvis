@@ -16,11 +16,12 @@ class HocViewer(gl.GLViewWidget):
     Input:
         h: HocReader instance or "xxxx.hoc" file name
     """
-    def __init__(self, hoc, camerapos=[200., 45., 45.], renderer='pyqtgraph', fighandle=None):
+    def __init__(self, hoc, camerapos=[200., 45., 45.], renderer='pyqtgraph', fighandle=None, flags=None):
         if not isinstance(hoc, HocReader):
             hoc = HocReader(hoc)
         self.hr = hoc
         self.graphics = []
+        self.flags = flags
         self.video_file = None
         if renderer == 'pyqtgraph' and fighandle == None:
             pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
@@ -78,6 +79,20 @@ class HocViewer(gl.GLViewWidget):
         self.addItem(g)
         return g
 
+    def draw_volume_mayavi(self):
+        """
+        Add a HocVolume graphic to this view.
+        
+        Returns
+        -------
+          HocVolume instance
+        """
+        mayavi_Volume(self.hr)
+        # g = HocVolume(self.hr)
+        # self.graphics.append(g)
+        # self.addItem(g)
+        # return g
+        
     def draw_surface(self):
         """
         Add a HocSurface graphic to this view.
@@ -118,11 +133,11 @@ class HocViewer(gl.GLViewWidget):
         self.addItem(g)
         return g
 
-    def draw_mayavi_cylinders(self, color=(0,0,1)):
-        mayavi_Cylinders(self.hr, color=color)
+    def draw_mayavi_cylinders(self, color=(0,0,1), label=None, flags=None):
+        mayavi_Cylinders(self.hr, color=color, label=label, flags=flags)
 
-    def draw_mayavi_graph(self, color=None):
-        mayavi_graph(self.hr, color=color)
+    def draw_mayavi_graph(self, color=None, label=None, flags=None):
+        mayavi_graph(self.hr, color=color, label=label, flags=flags)
 
     def draw_mpl(self, fax=None):
         """

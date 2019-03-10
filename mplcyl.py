@@ -15,7 +15,8 @@ class TruncatedCone(object):
         """
         Created on Sun Oct  2 18:33:10 2016
 
-        Modified from https://stackoverflow.com/questions/38076682/how-to-add-colors-to-each-individual-face-of-a-cylinder-using-matplotlib
+        Modified from 
+        https://stackoverflow.com/questions/38076682/how-to-add-colors-to-each-individual-face-of-a-cylinder-using-matplotlib
         to add "end caps" and to undo fancy coloring.
 
         @author: astrokeat
@@ -49,10 +50,10 @@ class TruncatedCone(object):
         n2 = np.cross(v, n1)
 
         #surface ranges over t from 0 to length of axis and 0 to 2*pi
-        t = np.linspace(0, mag, 2)
+        t = np.linspace(0, mag, num=2, endpoint=True)
         theta = np.linspace(0, 2 * np.pi, self.facets)
-        rsamplet = np.linspace(0, R[0], 2)
-        rsampleb = np.linspace(0, R[1], 2)
+        rsamplet = np.linspace(0, R[0], 2, endpoint=True)
+        rsampleb = np.linspace(0, R[1], 2, endpoint=True)
 
         #use meshgrid to make 2d arrays
         t, theta2 = np.meshgrid(t, theta)
