@@ -1,9 +1,11 @@
+from __future__ import print_function
+
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 from pyqtgraph.Qt import QtGui
 import numpy as np
 import scipy.ndimage
-import mpl_colormaps as mpc
+import neuronvis.mpl_colormaps as mpc
 
 Colors = { # colormap
     'b': np.array([0,0,255,255])/255.,
@@ -158,7 +160,7 @@ class HocGraphic(object):
         view = pg.GraphicsView() 
         view.addItem(colorBar)
         layout.addWidget(view, 0, 0)
-        print 'view show...'
+        print('view show...')
 
 
 class HocVolume(gl.GLVolumeItem, HocGraphic):

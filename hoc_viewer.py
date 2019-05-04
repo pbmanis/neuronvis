@@ -1,8 +1,10 @@
+from __future__ import print_function
+
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
-from hoc_reader import HocReader
-from hoc_graphics import *
+from .hoc_reader import HocReader
+from .hoc_graphics import *
 from pyqtgraph.Qt import QtGui
 
 class HocViewer(gl.GLViewWidget):
@@ -120,7 +122,7 @@ class HocViewer(gl.GLViewWidget):
             self.video_file.write(img)
         else:
             self.readQImage().save(file_name)
-        print 'Saved frame to file: ', file_name
+        print('Saved frame to file: ', file_name)
 
     
     def begin_video(self, file_name, fps=25):
@@ -150,12 +152,12 @@ class HocViewer(gl.GLViewWidget):
                              fps=fps, 
                              frameSize=winsize,
                              isColor=False)
-        print 'opened video file: ', file_name
+        print('opened video file: ', file_name)
         
     def save_video(self):
         """
         Finish storing the video created since the last call to begin_video()
         """
-        print 'Finished storing video file'
+        print('Finished storing video file')
         self.video_file.release()
         self.video_file = None

@@ -13,8 +13,6 @@
 #
 # You should have received a copy of the CC0 legalcode along with this
 # work.  If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
-import pyqtgraph as pg
-import numpy as np
 
 __all__ = ['magma', 'inferno', 'plasma', 'viridis']
 
@@ -1045,15 +1043,4 @@ _viridis_data = [[0.267004, 0.004874, 0.329415],
                  [0.974417, 0.903590, 0.130215],
                  [0.983868, 0.904867, 0.136897],
                  [0.993248, 0.906157, 0.143936]]
-
-# make pyqtgraph color maps from each of tehse
-
-maps = {'viridis': _viridis_data, 'plasma': _plasma_data, 'magma': _magma_data, 'inferno': _inferno_data}
-mpl_cm = {}
-for m in maps.keys():
-    for i, c in enumerate(maps[m]):
-        ca = [c[0], c[1], c[2], 1.0]
-        maps[m][i] = ca
-    
-    mpl_cm[m] = pg.ColorMap(np.linspace(0, 1.0, len(maps[m])), maps[m])
 

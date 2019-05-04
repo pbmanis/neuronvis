@@ -87,7 +87,7 @@ hoc = HocReader(hoc_file)
 view = HocViewer(hoc)
 print 'hoc file: ', hoc_file
 print 'hoc: ', hoc
-
+hoc.h.topology()
 
 # Handle commands
 ##########################################################
