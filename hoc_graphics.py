@@ -40,7 +40,67 @@ Colors = { # colormap
 
 colorMap = ['b', 'g', 'r', 'c', 'y', 'm', 'powderblue', 'brown', 'orange', 'pink']
 
+def compute_cube(cube_definition):
+    cube_definition_array = [
+        np.array(list(item))
+        for item in cube_definition
+    ]
 
+    points = []
+    points += cube_definition_array
+    vectors = [
+        cube_definition_array[1] - cube_definition_array[0],
+        cube_definition_array[2] - cube_definition_array[0],
+        cube_definition_array[3] - cube_definition_array[0]
+    ]
+
+    points += [cube_definition_array[0] + vectors[0] + vectors[1]]
+    points += [cube_definition_array[0] + vectors[0] + vectors[2]]
+    points += [cube_definition_array[0] + vectors[1] + vectors[2]]
+    points += [cube_definition_array[0] + vectors[0] + vectors[1] + vectors[2]]
+
+    points = np.array(points)
+    edges = [
+            [points[0], points[1]],
+            [points[0], points[2]],
+            [points[0], points[3]],
+            [points[1], points[4]],
+            [points[1], points[5]],
+            [points[2], points[4]],
+            [points[2], points[6]],
+            [points[3], points[5]],
+            [points[3], points[6]],
+            [points[4], points[7]],
+            [points[5], points[7]],
+            [points[6], points[7]],
+        ]
+    return points, edges
+
+# mayavi functions
+def refaxes(scene=None, ext=[80, 75, 55]):      
+    cube_definition = [
+        (-ext[0],-ext[1],-ext[2]), (-ext[0],ext[1],-ext[2]), (ext[0],-ext[1],-ext[2]), (-ext[0],-ext[1],ext[2])
+    ]
+    points, edges = compute_cube(cube_definition)
+    for j, e in enumerate(edges):
+        xyz = []
+        for k in range(3):
+            xyz.append([e[0][k], e[1][k]])
+        mlab.plot3d(xyz[0], xyz[1], xyz[2], color=(0.7, 0.7, 0.7), tube_radius=0.125)
+        
+    
+def reflines(scene=None, ext=[80, 75, 55]):      
+    x0 = [-ext[0], ext[0],     0.,    0.,    0.,   0.]
+    y0 = [   0.,   0.,  -ext[1],  ext[1],    0.,   0.]
+    z0 = [   0.,   0.,     0.,    0., -ext[2], ext[2]]
+    colc = [(1,0,0), (0,1,0), (0,0,1)]
+    # axisname = [f"x ({ext[0]:.0f})", 'y', 'z']
+    axisl = ['x', 'y', 'z']
+    for j, i in enumerate([0, 2, 4]):
+        mlab.plot3d(x0[i:i+2], y0[i:i+2], z0[i:i+2], color=colc[j], tube_radius=0.1)
+        axisname = f"{axisl[j]:s} ({ext[j]:+.0f})"
+        mlab.text3d(x0[i+1], y0[i+1], z0[i+1], axisname, figure=scene, scale=3.0)
+        
 
 
 class HocGraphic(object):
@@ -168,6 +228,22 @@ class HocVolume(HocGraphic, gl.GLVolumeItem):
         self.setTransform(transform)
 
 
+class mayavi_Volume(object):
+    def __init__(self, h):
+        self.h = h
+        scfield, idfield, transform = self.h.make_volume_data()
+        nfdata = np.empty(scfield.shape + (4,), dtype=np.ubyte)
+        nfdata[...,0] = 255 #scfield*50
+        nfdata[...,1] = 255# scfield*50
+        nfdata[...,2] = 255# scfield*50
+        nfdata[...,3] = np.clip(scfield*150, 0, 255)
+        # f = mlab.figure() # Returns the current scene.
+        # engine = mlab.get_engine() # Returns the running mayavi engine.
+        # scene  = engine.new_scene()
+        refaxes()
+        mlab.pipeline.volume(mlab.pipeline.scalar_field(scfield), vmin=0.24, vmax=0.25)
+        reflines()
+    
 class HocSurface(HocGraphic, gl.GLMeshItem):
     """
     Subclass of GLMeshItem that draws a surface representation of the geometry
@@ -224,7 +300,7 @@ class HocSurface(HocGraphic, gl.GLMeshItem):
 
 
 class mayavi_graph(object):
-    def __init__(self, h, color=(0,0,1)):
+    def __init__(self, h, color=(0,0,1), label=None):
         self.h = h
         #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
         verts, edges = h.get_geometry()
@@ -252,9 +328,10 @@ class mayavi_graph(object):
             N = len(X)
             connections.append(np.vstack(
                                    [np.arange(index,   index + N - 1.5),
-                                    np.arange(index + 1, index + N - .5)]
+                                    np.arange(index + 1, index + N - 0.5)]
                                         ).T)
             index += N
+
         XC = np.hstack(XC)
         YC = np.hstack(YC)
         ZC = np.hstack(ZC)
@@ -274,39 +351,26 @@ class mayavi_graph(object):
 
         # Finally, display the set of lines
         t = mlab.pipeline.surface(lines, color=color, line_width=2.0, opacity=1.0)
-        
-        # mlab.plot3d(XC, YC, ZC, color=color, tube_radius=0.5)
-        ext = 200.
-        x0 = [-ext, ext,     0.,    0.,    0.,   0.]
-        y0 = [   0.,   0.,  -ext,  ext,    0.,   0.]
-        z0 = [   0.,   0.,     0.,    0., -ext, ext]
-        colc = [(1,0,0), (0,1,0), (0,0,1)]
-        axisname = [f"x ({ext:.0f})", 'y', 'z']
-        for j, i in enumerate([0, 2, 4]):
-            mlab.plot3d(x0[i:i+2], y0[i:i+2], z0[i:i+2], color=colc[j], tube_radius=1.0)
-            mlab.text3d(x0[i], y0[i], z0[i], f"{axisname[j]:s}", scale=12.0)
+        refaxes()
+        reflines()
+        if label is not None:
+            mlab.text3d(XC[0], YC[0], ZC[0], f"{label:s}", figure=None, scale=1.5, color=color)
+
+
 
             
 class mayavi_Cylinders(object):
-    def __init__(self, h, color=(0,0,1)):
+    def __init__(self, h, color=(0,0,1), label=None, flags=None):
         self.h = h
         hcyl = mplcyl.TruncatedCone()
         #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
         verts, edges = h.get_geometry()
-        # print 'verts', verts
-        # print 'edges', edges
-        # print verts['pos']
-        # self.hg = HocGraphic(h)
-        # self.hg.set_section_colors = self.set_section_colors  
-        # super(HocCylinders, self).__init__()
+        # print ('edges', edges)
+        # print ('verts[pos]: ', verts['pos'])
+        # print ('verts', verts)
         meshes = []
         sec_ids = []
-        # if mpl and fax is None:
-        #     fig = plt.figure()
-        #     ax = fig.add_subplot(111, projection='3d')
-        # else:
-        #     fig = fax[0]
-        #     ax = fax[1]
+
         XC = []
         YC = []
         ZC = []
@@ -315,74 +379,77 @@ class mayavi_Cylinders(object):
         index = 0
         lastend = None
         ne = len(edges)
+        # print('# edges: ', ne)
         ndone = 0
-        for edge in edges:
+        for ind, edge in enumerate(edges): # # of edges corresponds to N-1 section indiators; and to # of cones
             ends = verts['pos'][edge]  # xyz coordinate of one end [x,y,z]
-            if lastend is None:
-                lastend = ends[1]
-                dist = 0
-            else:
-                dif = ends[0] - lastend
-                # print(ends[0], lastend)
-                # print(dif)
-                dist = (dif**2).sum() ** 0.5
-            # print(' ', dist)
-            if dist > 5.0:
-                if len(XC) > 0:
-                    mlab.mesh(XC, YC, ZC, color=color, line_width=0.0)
-                    # print('mesh with n = ', len(XC))
-                    
-                lastend = ends[1]
-                XC = []
-                YC = []
-                ZC = []
             dia = verts['dia'][edge]  # diameter at that end
-            sec_id = verts['sec_index'][edge[0]]  # save the section index
-            
-            dif = ends[1]-ends[0]  # distance between the ends
-            length = (dif**2).sum() ** 0.5
-            C, T, B = hcyl.make_truncated_cone(p0=ends[0], p1=ends[1], R=[dia[0]/2., dia[1]/2.])
+            C, T, B = hcyl.make_truncated_cone(p0=ends[1], p1=ends[0], R=[dia[1]/2., dia[0]/2.])
+
             XC.extend(C[0])
             YC.extend(C[1])
             ZC.extend(C[2])
-            # N = len(C[0])
-            # connections.append(np.vstack(
-            #                        [np.arange(index,   index + N - 1.5),
-            #                         np.arange(index + 1, index + N - .5)]
-            #                             ).T)
-            # index += N
-            
+            XC.append(np.array([np.nan, np.nan]))  # disconnect adjacent cylinders to avoid "strings"
+            YC.append(np.array([np.nan, np.nan]))
+            ZC.append(np.array([np.nan, np.nan]))
+            # mlab.mesh(XC, YC, ZC, color=color, line_width=0.0) # mesh so far
+                                
+            N = len(C[0])
+            connections.append(np.vstack(
+                                   [np.arange(index,   index + N - 1.5),
+                                    np.arange(index + 1, index + N - 0.5)]
+                                        ).T)            
+
+            index += N
+            # print('XC: ', len(XC), '\n', XC)
         # XC = np.hstack(XC)
         # YC = np.hstack(YC)
         # ZC = np.hstack(ZC)
         # S = np.hstack(S)
 
-        # print(XC.shape, S.shape)
         # connections = np.vstack(connections)
         # # Create the points
         # src = mlab.pipeline.scalar_scatter(XC, YC, ZC)
-        # # src.parent.parent.filter.vary_radius = 'vary_radius_by_scalar'
-        #
+        # src = mlab.pipeline.grid_source(XC, YC, ZC)
+        # src.parent.parent.filter.vary_radius = 'vary_radius_by_scalar'
+
         # # Connect them
         # src.mlab_source.dataset.lines = connections
-        # src.update()
-        # #
-        # # # The stripper filter cleans up connected lines
-        # lines = mlab.pipeline.stripper(src)
-        # # mesh = mlab.pipeline.delaunay3d(src)
-        # # Finally, display the set of lines
-        # t = mlab.pipeline.surface(lines, color=color, line_width=2.0, opacity=1.0)
-        mlab.mesh(XC, YC, ZC, color=color, line_width=0.0)
-        # mlab.plot3d(XC, YC, ZC, color=color, tube_radius=0.5)
-        ext = 200.
-        x0 = [-ext, ext,     0.,    0.,    0.,   0.]
-        y0 = [   0.,   0.,  -ext,  ext,    0.,   0.]
-        z0 = [   0.,   0.,     0.,    0., -ext, ext]
-        colc = [(1,0,0), (0,1,0), (0,0,1)]
-        axisname = [f"x ({ext:.0f})", 'y', 'z']
-        for j, i in enumerate([0, 2, 4]):
-            mlab.plot3d(x0[i:i+2], y0[i:i+2], z0[i:i+2], color=colc[j], tube_radius=1.0)
-            mlab.text3d(x0[i], y0[i], z0[i], f"{axisname[j]:s}", scale=12.0)
+#         src.update()
+#         # #
+#         # # # The stripper filter cleans up connected lines
+#         lines = mlab.pipeline.stripper(src)
+## mesh = mlab.pipeline.delaunay3d(src)
+        # Finally, display the set of lines
+        # surface(lines... )
+        # t = mlab.pipeline.surface(src, color=color, line_width=.0, opacity=1)
+        mlab.mesh(XC, YC, ZC, color=color, line_width=0.0, opacity=1.0)
+        # self.cursor3d = mlab.points3d(0., 0., 0., mode='2darrow',
+        #                         color=(1, 1, 1), [-10, 10, -10, 10, -10, 10],
+        #                         scale_factor=0.5)
+        if flags is not None:
+            if 'norefaxes' not in flags:
+                refaxes()
+            if 'norefline' not in flags:
+                reflines()
+        else:
+            refaxes()
+            reflines()
+        
+        if label is not None and 'text' in flags:
+            # print('cylinder: ', label, XC[0], YC[0], ZC[0])
+            mlab.text3d(XC[0][0]+5, YC[0][0], ZC[0][0], f"{label:s}", color=color, figure=None, scale=2.0)
+
+        #mlab.plot3d(XC, YC, ZC, color=color, tube_radius=0.5)
+       #  ext = 200.
+       #  x0 = [-ext, ext,     0.,    0.,    0.,   0.]
+       #  y0 = [   0.,   0.,  -ext,  ext,    0.,   0.]
+       #  z0 = [   0.,   0.,     0.,    0., -ext, ext]
+       #  colc = [(1,0,0), (0,1,0), (0,0,1)]
+       #  axisname = [f"x ({ext:.0f})", 'y', 'z']
+       #  for j, i in enumerate([0, 2, 4]):
+       #      mlab.plot3d(x0[i:i+2], y0[i:i+2], z0[i:i+2], color=colc[j], tube_radius=1.0)
+       #      mlab.text3d(x0[i], y0[i], z0[i], f"{axisname[j]:s}", scale=12.0)
 
 
         # mlab.mesh(X, Y, Z)
