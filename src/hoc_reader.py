@@ -7,7 +7,7 @@ import numpy as np
 import pyqtgraph as pg
 import os
 import re
-import swc_to_hoc
+# import swc_to_hoc
 
 class HocReader(object):
     """
