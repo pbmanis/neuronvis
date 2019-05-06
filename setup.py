@@ -9,17 +9,17 @@ __version__ = '%d.%d.%d%s' % version_info
 setup(name='neuronvis',
       version=__version__,
       description='Neuron Visualization module',
-      url='http://github.com/pbmanis/VCN_Model',
+      url='http://github.com/pbmanis/neuronvis',
       author='Paul B. Manis and Luke Campagnola',
       author_email='pmanis@med.unc.edu',
       license='MIT',
-      packages=find_packages(include=['src*']),
+      packages=find_packages(include=['neuronvis*']),
       install_requires=['matplotlib>=3.0', 'numpy>=1.1', 'mayavi'
           ],
       zip_safe=False,
       entry_points={
           'console_scripts': [
-               'hocRender=src.hodRender:main',
+               'hocRender=neuronvis.hocRender:main',
                ],
           # 'gui_scripts': [
           #       'event_monger=src.event_monger:main',
