@@ -20,6 +20,7 @@ setup(name='neuronvis',
       entry_points={
           'console_scripts': [
                'hocRender=neuronvis.hocRender:main',
+               'swc_to_hoc=neuronvis.swc_to_hoc:main'
                ],
           # 'gui_scripts': [
           #       'event_monger=src.event_monger:main',
@@ -36,4 +37,3 @@ setup(name='neuronvis',
              "Topic :: Computational Modeling :: Neuroscience",
              ],
     )
-      

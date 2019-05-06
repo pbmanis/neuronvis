@@ -27,17 +27,18 @@ from __future__ import absolute_import
 
 
 import os, sys, pickle
-os.environ['PYQTGRAPH_QT_LIB'] = 'PyQt5' 
+import argparse
+os.environ['PYQTGRAPH_QT_LIB'] = 'PyQt5'
 import pyqtgraph as pg
 import numpy as np
-# import here so we can parse commands more quickly 
+# import here so we can parse display_modes more quickly
 # (and without neuron garbage)
 from .hoc_reader import HocReader
 from .hoc_viewer import HocViewer
 from . import hoc_graphics
 
-# define all commands here.
-commands = {
+# define all display_modes here.
+display_modes = {
     'sec-type': "Sections colored by type",
     'vm': "Animation of per-section membrane voltage over time.",
     'graph': "Simple wireframe rendering.",
@@ -50,27 +51,27 @@ commands = {
     'vispy': 'render using vispy'
     }
 
-# Handle command line arguments.
-# might introduce real command line parsing later..
+# Handle display_mode line arguments.
+# might introduce real display_mode line parsing later..
 ##########################################################
 
 def error():
-    print("Usage: hocRender input_file command")
+    print("Usage: hocRender input_file display_mode")
     print("  input_file may be either *.hoc defining section properties or")
     print("  *.p containing simulation results.\n")
-    print("Available commands:")
-    for cmd,desc in commands.items():
+    print("Available display_modes:")
+    for cmd,desc in display_modes.items():
         print("  "+cmd+":")
         print("\n".join(["    "+line for line in desc.split("\n")]))
     sys.exit(-1)
 
 
 
-# Handle commands
+# Handle display_modes
 ##########################################################
 
 section_colors = {
-    'axon': 'g', 
+    'axon': 'g',
     'hillock': 'r',
     'initialsegment': 'c',
     'myelinatedaxon': 'white',
@@ -83,18 +84,18 @@ section_colors = {
     'basal': 'm',
     'initseg': 'c',
     'ais': 'c',
-    'heminode': 'g', 
-    'stalk':'y', 
-    'branch': 'b', 
+    'heminode': 'g',
+    'stalk':'y',
+    'branch': 'b',
     'neck': 'brown',
-    'swelling': 'magenta', 
-    'tip': 'powderblue', 
-    'parentaxon': 'orange', 
+    'swelling': 'magenta',
+    'tip': 'powderblue',
+    'parentaxon': 'orange',
     'synapse': 'k'}
 
 
 class Render(object):
-    def __init__(self, command='sec-type', renderer='pyqtgraph', fighandle=None, hoc_file=None, 
+    def __init__(self, display_mode='cylinders', renderer='pyqtgraph', display=None, fighandle=None, hoc_file=None,
                        sim_data=None, fax=None, somaonly=False, color='blue', label=None, flags=None):
 
         self.color = color
@@ -102,22 +103,20 @@ class Render(object):
         self.renderer = renderer
         self.view = HocViewer(hoc, renderer=renderer, fighandle=fighandle)
         self.label = label
-        
+
         # print("Section groups:")
         # print(self.view.hr.sec_groups.keys())
-        if command == 'volume':
+        if display_mode == 'volume':
             if renderer == 'pyqtgraph':
                 vol = self.view.draw_volume()
             if renderer == 'mayavi':
                 vol = self.view.draw_volume_mayavi()
-        if command == 'surface':
+        if display_mode == 'surface':
             surf = self.view.draw_surface()
-        if command == 'sec-type':
-            # Color sections by type.
-            surf = self.view.draw_surface()
-            surf.set_group_colors(section_colors, alpha=0.35)
-        
-        elif command == 'graph':
+            if display == 'sec-type':
+                surf.set_group_colors(section_colors, alpha=0.35)
+
+        elif display_mode == 'graph':
             if renderer == 'pyqtgraph':
                 g = self.view.draw_graph()
                 g.set_group_colors(section_colors)
@@ -125,8 +124,8 @@ class Render(object):
                 g = self.view.draw_mpl_graph(fax=fax)
             elif renderer == 'mayavi':
                 g = self.view.draw_mayavi_graph(color=self.color, label=label, flags=flags)
-        
-        elif command == 'cylinders':
+
+        elif display_mode == 'cylinders':
             if renderer == 'pyqtgraph':
                 g = self.view.draw_cylinders()
             elif renderer == 'mpl':
@@ -134,10 +133,10 @@ class Render(object):
             elif renderer == 'mayavi':
                 g = self.view.draw_mayavi_cylinders(color=self.color, label=label, flags=flags)
 
-        elif command == 'vispy':
+        elif display_mode == 'vispy':
             g = self.view.draw_vispy()
-    
-        elif command == 'vm':
+
+        elif display_mode == 'vm':
 
             # Render animation of membrane voltage
             if self.sim_data is None:
@@ -172,12 +171,12 @@ class Render(object):
         #v = sim_data.data['Vm'][:,index]
         v = self.sim_data.data[:,index]
         color = vm_to_color(v)
-        
-        # note that we assume sections are ordered the same in the HocReader 
-        # as they are in the results data, but really we should use 
+
+        # note that we assume sections are ordered the same in the HocReader
+        # as they are in the results data, but really we should use
         # sim_data.section_map to ensure this is True.
         surf.set_section_colors(color)
-        
+
 
     def update(self):
         global index, start, stop, sim_data, surf, loopCount, nloop
@@ -218,41 +217,51 @@ class Render(object):
 
 def main():
 
-    
-    if len(sys.argv) < 2 or not os.path.isfile(sys.argv[1]):
-        print('file not found')
-        error()
-    input_file = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Hoc Rendering',
+                    argument_default=argparse.SUPPRESS,
+                    fromfile_prefix_chars='@')
+    parser.add_argument(dest='input_file', action='store',
+                   default=None,
+                   help='Select the hoc file to render (no default)')
+    parser.add_argument('--renderer', '-r', dest='renderer', action='store',
+                   default='pyqtgraph', choices=['pyqtgraph', 'vispy', 'mayavi', 'mpl'],
+                   help='Select the renderer (default pyqtgraph)')
+    parser.add_argument('--mode', '-m', dest='displaymode', action='store',
+                    default='cylinders', choices=['cylinders', 'graph', 'volume', 'surface',
+                        'sec-type'],
+                    help='Select the display mode (default: cylinders)')
 
-    if len(sys.argv) > 2:
-        command = sys.argv[2]
-        if command not in commands:
-            error()
-    else:
-        command = 'sec-type'
+    parser.add_argument('--display', '-d', dest='display', action='store',
+                    default='None', choices=['vm',
+                        'sec-type'],
+                    help='Select the display mode (default: None)')
+
+    args = vars(parser.parse_args())
+
+    display_mode = args['displaymode']
 
 
     hoc_file = None
     sim_data =None
     # read input file(s)
-    if input_file.endswith('.p'):
+    if args['input_file'].endswith('.p'):
         print('reading input file')
         from .sim_result import SimulationResult
-        sim_data = SimulationResult(input_file)
+        sim_data = SimulationResult(args['input_file'])
         print('simdata: ', sim_data)
         hoc_file = sim_data.hoc_file
         print('hoc_file: ', hoc_file)
-    elif input_file.endswith('.hoc'):
-        hoc_file = input_file
+    elif args['input_file'].endswith('.hoc'):
+        hoc_file = args['input_file']
     else:
         error()
-    
-    Render(command=command, hoc_file=hoc_file, sim_data=sim_data)
 
-    if sys.flags.interactive == 0:
-        import pyqtgraph as pg
-        pg.Qt.QtGui.QApplication.exec_()
-    
+    Render(display_mode=display_mode, renderer=args['renderer'], display=args['display'], hoc_file=hoc_file, sim_data=sim_data)
+
+    if args['renderer'] == 'pyqtgraph':
+        if sys.flags.interactive == 0:
+            import pyqtgraph as pg
+            pg.Qt.QtGui.QApplication.exec_()
+
 if __name__ == '__main__':
     main()
-    

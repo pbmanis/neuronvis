@@ -12,7 +12,7 @@ import re
 class HocReader(object):
     """
     Provides useful methods for reading hoc structures.
-    
+
     Input:
         hoc: a hoc object or a "xxx.hoc" file name.
     """
@@ -35,37 +35,37 @@ class HocReader(object):
                 raise NameError("Found file, but NEURON load failed: %s" % (fullfile))
             self.file_loaded = True
             self.h = h # save a copy of the hoc object itself.
- 
+
         else:
             self.h = hoc # just use the passed argument
             self.file_loaded = True
         # geometry containers
         self.edges = None
         self.vertexes = None
-        
+
         # all sections in the hoc  {sec_name: hoc Section}
         self.sections = collections.OrderedDict()
         # {sec_name: index} indicates index into self.sections.values() where
-        # Section can be found. 
+        # Section can be found.
         self.sec_index = {}
         # {sec_name: [mechanism, ...]}
         self.mechanisms = collections.OrderedDict()
         # {sec_group_name: set(sec_name, ...)}
-        self.sec_groups = {} 
-        
+        self.sec_groups = {}
+
         # populate self.sections and self.mechanisms
         self._read_section_info()
-        
+
         # auto-generate section groups based on either hoc section lists, or
         # on section name prefixes.
         sec_lists = self.get_section_lists()
         sec_prefixes = self.get_section_prefixes()
 
-        
+
         # Add groupings by section list if possible:
         if len(sec_lists) > 1:
             self.add_groups_by_section_list(sec_lists)
-            
+
         # Otherwise, try section prefixes
         elif len(sec_prefixes) > 1:
             for group, sections in sec_prefixes.items():
@@ -91,11 +91,11 @@ class HocReader(object):
     def get_section_prefixes(self):
         """
         Go through all the sections and generate a dictionary mapping their
-        name prefixes to the list of sections with that prefix. 
-        
+        name prefixes to the list of sections with that prefix.
+
         For example, with sections names axon[0], axon[1], ais[0], and soma[0],
         we would generate the following structure:
-        
+
             {'axon': ['axon[0]', 'axon[1]'],
              'ais':  ['ais[0]'],
              'soma': ['soma[0]']}
@@ -134,7 +134,7 @@ class HocReader(object):
         Side-effects:
             None
         """
-        
+
         gmech = []
         for seg in section:
             try:
@@ -206,18 +206,18 @@ class HocReader(object):
         for hvar in dir(self.h): # look through the whole list, no other way
             try:
                 # some variables can't be pointed to...
-                if hvar in ['nseg', 'diam_changed', 'nrn_shape_changed_', 
-                            'secondorder', 'stoprun']: 
+                if hvar in ['nseg', 'diam_changed', 'nrn_shape_changed_',
+                            'secondorder', 'stoprun']:
                     continue
                 u = getattr(self.h, hvar)
                 names[hvar] = u
             except:
                 continue
         return names
-    
+
     def find_hoc_hname(self, regex):
         """
-        Return a list of the names of HOC objects whose *hname* matches regex.    
+        Return a list of the names of HOC objects whose *hname* matches regex.
         """
         objs = []
         ns = self.hoc_namespace()
@@ -243,11 +243,11 @@ class HocReader(object):
         """
         Declare a grouping of sections (or section names). Sections may be
         grouped by any arbitrary criteria (cell, anatomical type, etc).
-        
+
         Input:
             name: string name of the section group
             sections: list of section names or hoc Section objects.
-        
+
         """
         if name in self.sec_groups and not overwrite:
             raise Exception("Group name %s is already used (use overwrite=True)." % name)
@@ -266,7 +266,7 @@ class HocReader(object):
         Return the set of section names in the group *name*.
         """
         return self.sec_groups[name]
-    
+
     def get_section_lists(self):
         """
         Search through all of the hoc variables to find those that are "SectionLists"
@@ -274,28 +274,28 @@ class HocReader(object):
         return self.find_hoc_hname(regex=r'SectionList\[')
         #ns = self.hoc_namespace()
         #return [name for name in ns if ns[name].hname().startswith('SectionList[')]
-        
+
     def add_groups_by_section_list(self, names):
         """
         Add a new section groups from the hoc variables indicated in *names*.
-        
+
         Input:
-            names: list of variable names. Each name must refer to a list of 
+            names: list of variable names. Each name must refer to a list of
                    Sections in hoc. If a dict is supplied instead, then it
                    maps {hoc_list_name: section_group_name}.
         Side effects (modifies):
            calls add_section_group
         returns: Nothing.
         """
-        # if a list is supplied, then the names of groups to create are 
+        # if a list is supplied, then the names of groups to create are
         # exactly the same as the names of hoc lists.
         if not isinstance(names, dict):
             names = {name:name for name in names}
         for hoc_name, group_name in names.items():
             var = getattr(self.h, hoc_name)
             self.add_section_group(group_name, list(var))
-                
-            
+
+
 
     def get_geometry(self):
         """
@@ -309,19 +309,19 @@ class HocReader(object):
         Side effects:
             modifies vertexes and edges.
         """
-        
+
         # return cached geometry if this method has already run.
         if self.vertexes is not None:
             return self.vertexes, self.edges
-        
+
         self.h.define_shape()
 
         # map segments (lines) to the section that contains them
         self.segment_to_section = {}
-        
+
         vertexes = []
         connections = []
-        
+
         for secid, sec in enumerate(self.sections.values()):
             x_sec, y_sec, z_sec, d_sec = self.retrieve_coordinate(sec)
 
@@ -381,25 +381,25 @@ class HocReader(object):
         Returns:
             * 3D scalar field indicating distance from nearest membrane,
             * 3D field indicating section IDs of nearest membrane,
-            * QTransform that maps from 3D array indexes to original vertex 
+            * QTransform that maps from 3D array indexes to original vertex
                 coordinates.
         """
 
         res = 0.5 # resolution of scalar field in microns
         maxdia = 25. # maximum diameter (defines shape of kernel)
         kernel_size = int(maxdia/res) + 1 # width of kernel
-        
+
         vertexes, lines = self.get_geometry()
-        
+
         maxdia = vertexes['dia'].max() # maximum diameter (defines shape of kernel)
         kernel_size = int(maxdia/resolution) + 3 # width of kernel
-        
-        
+
+
         # read vertex data
         pos = vertexes['pos']
         d = vertexes['dia']
         sec_id = vertexes['sec_index']
-        
+
         # decide on dimensions of scalar field
         mx = pos.max(axis=0)
         mn = pos.min(axis=0)
@@ -412,11 +412,11 @@ class HocReader(object):
             raise Exception("Scalar field would be larger than max_size (%dMB > %dMB)" % (size/1e6, max_size/1e6))
         scfield = np.zeros(shape, dtype=np.float32)
         scfield[:] = -1000
-        
+
         # array for holding IDs of sections that contribute to each area
         idfield = np.empty(shape, dtype=int)
         idfield[:] = -1
-        
+
         # map vertex locations to voxels
         vox_pos = pos.copy()
         vox_pos -= mn.reshape((1,3))
@@ -432,9 +432,9 @@ class HocReader(object):
 
         def array_intersection(arr1, arr2, pos):
             """
-            Return slices used to access the overlapping area between two 
-            arrays that are offset such that the origin of *arr2* is a *pos* 
-            relative to *arr1*.            
+            Return slices used to access the overlapping area between two
+            arrays that are offset such that the origin of *arr2* is a *pos*
+            relative to *arr1*.
             """
             s1 = [0]*3
             s2 = [0]*3
@@ -448,7 +448,7 @@ class HocReader(object):
                 t2[axis] = min(arr1.shape[axis], pos[axis]+arr2.shape[axis])
             slice1 = (slice(t1[0],t2[0]), slice(t1[1],t2[1]), slice(t1[2],t2[2]))
             slice2 = (slice(s1[0],s2[0]), slice(s1[1],s2[1]), slice(s1[2],s2[2]))
-            return slice1, slice2            
+            return slice1, slice2
 
         vox_pos[:,0] = np.clip(vox_pos[:,0], 0, scfield.shape[0]-1)
         vox_pos[:,1] = np.clip(vox_pos[:,1], 0, scfield.shape[1]-1)
@@ -471,7 +471,7 @@ class HocReader(object):
                 #stamp_array(idfield, kern, p1)
                 dia += (d[j]-d[i]) / nvoxels
                 p1 += diff / nvoxels
-                
+
         # return transform relating volume data to original vertex data
         transform = pg.Transform3D()
         w = resolution * kernel_size / 2 # offset introduced due to kernel
