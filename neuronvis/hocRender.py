@@ -72,28 +72,39 @@ def error():
 ##########################################################
 
 section_colors = {
-    'axon': 'g',
-    'hillock': 'r',
-    'initialsegment': 'c',
+    'axon': 'g',  # in this dict, we handle multiple labels for the same structure.
+    'Axon_Initial_Segment': 'cyan',
+    'initialsegment': 'cyan',
+    'initseg': 'cyan',
+    'ais': 'cyan',
+    'hillock': 'orange',
+    'Axon_Hillock': 'orange',
     'myelinatedaxon': 'white',
+    'Myelinated_Axon': 'white',
     'unmyelinatedaxon': 'orange',
-    'soma': 'b',
-    'somatic': 'b',
-    'apic': 'y',
-    'apical': 'y',
-    'dend': 'm',
-    'dendrite': 'm',
-    'basal': 'm',
-    'initseg': 'c',
-    'ais': 'c',
-    'heminode': 'g',
-    'stalk':'y',
-    'branch': 'b',
+    'Unmyelinated_Axon': 'orange',
+    'soma': 'blue',
+    'somatic': 'blue',
+    'Soma': 'blue',
+    'apic': 'yellow',
+    'apical': 'yellow',
+    'Distal_Dendrite': 'yellow',
+    'dend': 'magenta',
+    'dendrite': 'magenta',
+    'Proximal_Dendrite': 'magenta',
+    'basal': 'magenta',
+    'Dendritic_Swelling': 'magenta',
+    'Dendritic_Hub': 'red',
+
+    # calyx specific
+    'heminode': 'green',
+    'stalk':'yellow',
+    'branch': 'blue',
     'neck': 'brown',
     'swelling': 'magenta',
-    'tip': 'powderblue',
+    'tip': 'powder blue',
     'parentaxon': 'orange',
-    'synapse': 'k'}
+    'synapse': 'black'}
 
 
 class Render(object):
@@ -271,6 +282,8 @@ def main():
         hoc_file = sim_data.hoc_file
         print('hoc_file: ', hoc_file)
     elif args['input_file'].endswith('.hoc'):
+        hoc_file = args['input_file']
+    elif args['input_file'].endswith('.hocx'):
         hoc_file = args['input_file']
     else:
         error()
