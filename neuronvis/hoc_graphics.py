@@ -1,44 +1,48 @@
-from __future__ import print_function
-from __future__ import absolute_import
+
 import sys
-import pyqtgraph as pg
-import pyqtgraph.opengl as gl
 import numpy as np
+import pyqtgraph as pg
 
 import matplotlib.pyplot as mpl
-from mpl_toolkits.mplot3d import Axes3D
 from . import mplcyl
 from mayavi import mlab
+import pyqtgraph.opengl as gl
+from . import xkcd_colors
+Colors = xkcd_colors.get_colors()
+colorMap = list(Colors.keys())
 
-Colors = { # colormap
-    'b': np.array([0,0,255,255])/255.,
-    'blue': np.array([0,0,255,255])/255.,
-    'g': np.array([0,255,0,255])/255.,
-    'green': np.array([0,255,0,255])/255.,
-    'r': np.array([255,0,0,255])/255.,
-    'red': np.array([255,0,0,255])/255.,
-    'c': np.array([0,255,255,255])/255.,
-    'cyan': np.array([0,255,255,255])/255.,
-    'm': np.array([255,0,255,255])/255.,
-    'magenta': np.array([255,0,255,255])/255.,
-    'y': np.array([255,255,0,255])/255.,
-    'yellow': np.array([255,255,0,255])/255.,
-    'k': np.array([0,0,0,255])/255.,
-    'black': np.array([0,0,0,255])/255.,
-    'w': np.array([255,255,255,255])/255.,
-    'white': np.array([255,255,255,255])/255.,
-    'd': np.array([150,150,150,255])/255.,
-    'dark': np.array([150,150,150,255])/255.,
-    'l': np.array([200,200,200,255])/255.,
-    'light': np.array([200,200,200,255])/255.,
-    's': np.array([100,100,150,255])/255.,
-    'powderblue': np.array([176,230,230,255])/255.,
-    'brown': np.array([180,25,25,255])/255.,
-    'orange': np.array([255,180,0,255])/255.,
-    'pink': np.array([255,190,206,255])/255.,
-}
-
-colorMap = ['b', 'g', 'r', 'c', 'y', 'm', 'powderblue', 'brown', 'orange', 'pink']
+# Colors = { # colormap
+#     'b': np.array([0,0,255,255])/255.,
+#     'blue': np.array([0,0,255,255])/255.,
+#     'g': np.array([0,255,0,255])/255.,
+#     'green': np.array([0,255,0,255])/255.,
+#     'r': np.array([255,0,0,255])/255.,
+#     'red': np.array([255,0,0,255])/255.,
+#     'c': np.array([0,255,255,255])/255.,
+#     'cyan': np.array([0,255,255,255])/255.,
+#     'm': np.array([255,0,255,255])/255.,
+#     'magenta': np.array([255,0,255,255])/255.,
+#     'y': np.array([255,255,0,255])/255.,
+#     'yellow': np.array([255,255,0,255])/255.,
+#     'k': np.array([0,0,0,255])/255.,
+#     'black': np.array([0,0,0,255])/255.,
+#     'w': np.array([255,255,255,255])/255.,
+#     'white': np.array([255,255,255,255])/255.,
+#     'd': np.array([150,150,150,255])/255.,
+#     'dark': np.array([150,150,150,255])/255.,
+#     'l': np.array([200,200,200,255])/255.,
+#     'light': np.array([200,200,200,255])/255.,
+#     's': np.array([100,100,150,255])/255.,
+#     'powderblue': np.array([176,230,230,255])/255.,
+#     'brown': np.array([180,25,25,255])/255.,
+#     'orange': np.array([255,180,0,255])/255.,
+#     'pink': np.array([255,190,206,255])/255.,
+#     'teal': np.array([])/255.,
+#     'sienna':
+#
+# }
+#
+# colorMap = ['b', 'g', 'r', 'c', 'y', 'm', 'powderblue', 'brown', 'orange', 'pink', ]
 
 def compute_cube(cube_definition):
     cube_definition_array = [
