@@ -25,7 +25,7 @@ class HocReader(object):
             fullfile = Path(os.getcwd(), hoc)
             if not fullfile.exists():
                 raise Exception("File not found: %s" % (str(fullfile)))
-            if fullfile.suffix in ['.hoc']:
+            if fullfile.suffix in ['.hoc', '.hocx']:
                 neuron.h.hoc_stdout('/dev/null')  # prevent junk from printing while reading the file
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
