@@ -91,10 +91,10 @@ section_colors = {
     'Distal_Dendrite': 'yellow',
     'dend': 'magenta',
     'dendrite': 'magenta',
-    'Proximal_Dendrite': 'magenta',
+    'Proximal_Dendrite': 'wintergreen',
     'basal': 'magenta',
-    'Dendritic_Swelling': 'magenta',
-    'Dendritic_Hub': 'red',
+    'Dendritic_Swelling': 'powder blue',
+    'Dendritic_Hub': 'neon red',
 
     # calyx specific
     'heminode': 'green',
@@ -172,6 +172,7 @@ class Render(object):
 
     def color_map(self, g, display, mechanism=None, alpha=1.0):
         if display == 'sec-type':
+            alpha=1.0
             g.set_group_colors(section_colors, alpha=alpha)
         if display == 'mechanism' and (mechanism is not 'None' or mechanism is not None):
             g.set_group_colors(section_colors, mechanism=mechanism)
@@ -246,12 +247,15 @@ def main():
     parser = argparse.ArgumentParser(description='Hoc Rendering',
                     argument_default=argparse.SUPPRESS,
                     fromfile_prefix_chars='@')
+                    
     parser.add_argument(dest='input_file', action='store',
                    default=None,
                    help='Select the hoc file to render (no default)')
+                   
     parser.add_argument('--renderer', '-r', dest='renderer', action='store',
                    default='pyqtgraph', choices=['pyqtgraph', 'vispy', 'mayavi', 'mpl'],
                    help='Select the renderer (default pyqtgraph)')
+                   
     parser.add_argument('--mode', '-m', dest='displaymode', action='store',
                     default='cylinders', choices=['cylinders', 'graph', 'volume', 'surface',
                         'sec-type'],
