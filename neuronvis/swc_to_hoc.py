@@ -368,12 +368,16 @@ class SWC(object):
 
             hoc.append("")
 
-        with open(filename, "w") as fh:
-            fh.write("\n".join(hoc))
-        print(f"Wrote hoc file: {str(filename):s}")
-
+        if filename is not None:
+            with open(filename, "w") as fh:
+                fh.write("\n".join(hoc))
+            print(f"Wrote hoc file: {str(filename):s}")
         # now generate reverse section map for reference
-        self.make_segmap(filename)
+            self.make_segmap(filename)
+        else:
+            return hoc
+
+
 
     @property
     def root(self) -> int:
@@ -458,7 +462,7 @@ class SWC(object):
                 "%ssections[%d] type=%s parent=%d %s" % (this_indent, i, typ, p, secstr)
             )
 
-    def make_segmap(self, filename:Path) -> None:
+    def make_segmap(self, filename:Path, stronly=False) -> None:
         """
         Create a file that helps map hoc sections back to the original swc segments
         (from hoc_swc_sectionmap.py in vcnmodel)
@@ -522,6 +526,7 @@ class SWC(object):
         print("Wrote hoc->swc segmap to: ", fout)
 
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Convert SWC file to HOC file for NEURON",
@@ -542,6 +547,23 @@ def main() -> None:
         default=1.0,
         help="Set scale factor for radii",
     )
+    
+    # parser.add_argument(
+    #     "--somascale",
+    #     type=float,
+    #     default=1.0,
+    #     dest="somascale",
+    #     help="Set scaling for soma sections"
+    # )
+    #
+    # parser.add_argument(
+    #     "--dendscale",
+    #     type=float,
+    #     default=1.0,
+    #     dest="dendscale",
+    #     help="Set scaling for dendritic sections"
+    # )
+    #
     parser.add_argument(
         "-s",
         "--secmap",
@@ -553,23 +575,34 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--remap",
-        type=bool,
+        "-R",
+        action="store_true",
         default=False,
-        dest="remap",
+        # dest="remap",
         help="Remap names to basic set used in cnmodel",
     )
 
     args = parser.parse_args()
     fn = Path(args.filename).with_suffix('.swc')
-    scales = {"x": 1.0, "y": 1.0, "z": 1.0, "r": 1.0}
+    scales = {"x": 1.0, "y": 1.0, "z": 1.0, "r": 1.0, "soma": 1.0, "dend":1.0}
     if args.radiiscale != 1.0:
         scales["r"] = args.radiiscale
+    # if args.somascale != 1.0:
+    #     scales["soma"] = args.somascale
+    # if args.dendscale != 1.0:
+    #     scales["dend"] = args.dendscale
 
+    noseparatescale = True
     if fn.is_file():
         s = SWC(filename=fn, secmap=args.secmap, scales=scales)
         # s.topology()
-        s.write_hoc(Path(args.filename).with_suffix(".hocx"))
+        if noseparatescale or not (args.somascale or args.dendscale):
+            s.write_hoc(Path(args.filename).with_suffix(".hocx"))
+        else:
+            ffn = Path(
+                args.filename.stem,
+                '_s_{.3f:args.somascale}_d_{.3f:args.dendscale}').with_suffix(".hocx")
+            s.write_hoc(ffn)
     else:
         print(f'File "{str(fn):s}" was not found')
 
