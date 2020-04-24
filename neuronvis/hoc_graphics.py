@@ -1,9 +1,12 @@
 
 import sys
 import numpy as np
+from typing import Union
+
 import pyqtgraph as pg
 
 import matplotlib.pyplot as mpl
+from mpl_toolkits.mplot3d import axes3d
 from . import mplcyl
 from mayavi import mlab
 import pyqtgraph.opengl as gl
@@ -11,38 +14,6 @@ from . import xkcd_colors
 Colors = xkcd_colors.get_colors()
 colorMap = list(Colors.keys())
 
-# Colors = { # colormap
-#     'b': np.array([0,0,255,255])/255.,
-#     'blue': np.array([0,0,255,255])/255.,
-#     'g': np.array([0,255,0,255])/255.,
-#     'green': np.array([0,255,0,255])/255.,
-#     'r': np.array([255,0,0,255])/255.,
-#     'red': np.array([255,0,0,255])/255.,
-#     'c': np.array([0,255,255,255])/255.,
-#     'cyan': np.array([0,255,255,255])/255.,
-#     'm': np.array([255,0,255,255])/255.,
-#     'magenta': np.array([255,0,255,255])/255.,
-#     'y': np.array([255,255,0,255])/255.,
-#     'yellow': np.array([255,255,0,255])/255.,
-#     'k': np.array([0,0,0,255])/255.,
-#     'black': np.array([0,0,0,255])/255.,
-#     'w': np.array([255,255,255,255])/255.,
-#     'white': np.array([255,255,255,255])/255.,
-#     'd': np.array([150,150,150,255])/255.,
-#     'dark': np.array([150,150,150,255])/255.,
-#     'l': np.array([200,200,200,255])/255.,
-#     'light': np.array([200,200,200,255])/255.,
-#     's': np.array([100,100,150,255])/255.,
-#     'powderblue': np.array([176,230,230,255])/255.,
-#     'brown': np.array([180,25,25,255])/255.,
-#     'orange': np.array([255,180,0,255])/255.,
-#     'pink': np.array([255,190,206,255])/255.,
-#     'teal': np.array([])/255.,
-#     'sienna':
-#
-# }
-#
-# colorMap = ['b', 'g', 'r', 'c', 'y', 'm', 'powderblue', 'brown', 'orange', 'pink', ]
 
 def compute_cube(cube_definition):
     cube_definition_array = [
@@ -158,11 +129,13 @@ class HocGraphic(object):
                     #print ('section: %s, gmax = %f' % (sec_name, g))
                     mechmax  = max(mechmax, g)
                     sec_colors[index,3] = g
-                elif alpha is not None:
+                if alpha is not None:
                     sec_colors[index, 3] = alpha
+                    print('  set group colors alpha: ', alpha)
            # print (mechmax)
         if mechanism is not None and mechmax > 0:
             sec_colors[:,3] = 0.05 + 0.95*sec_colors[:,3]/mechmax # set alpha for all sections
+        print(sec_colors)
         self.set_section_colors(sec_colors)
 
 class HocGrid(HocGraphic, gl.GLGridItem):
@@ -305,9 +278,11 @@ class HocSurface(HocGraphic, gl.GLMeshItem):
 
 
 class mayavi_graph(object):
-    def __init__(self, h, color=(0,0,1), label=None):
+    def __init__(self, h:object, color:Union[list, tuple, str]=(0,0,1), label=None, flags=None) -> object:
         self.h = h
         #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
+        if isinstance(color, str):
+            color = tuple(Colors[color][:3])
         verts, edges = h.get_geometry()
         sec_id = []
         XC = []
@@ -467,7 +442,7 @@ class mpl_Cylinders(object):
         h: HocReader instance
     """
 
-    def __init__(self, h, mpl=True, fax=None):
+    def __init__(self, h, useMpl=True, fax=None):
         self.h = h
         hcyl = mplcyl.TruncatedCone()
         #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
@@ -480,9 +455,9 @@ class mpl_Cylinders(object):
         # super(HocCylinders, self).__init__()
         meshes = []
         sec_ids = []
-        if mpl and fax is None:
+        if useMpl and fax is None:
             fig = mpl.figure()
-            ax = fig.add_subplot(111, projection='3d')
+            ax = fig.gca(projection='3d')
         else:
             fig = fax[0]
             ax = fax[1]
@@ -502,10 +477,10 @@ class mpl_Cylinders(object):
             # meshes.append(mesh_verts)
             # sec_ids.append(sec_id_array)
             meshes.append(mesh_verts)
-            if mpl:
+            if useMpl:
                 ax.plot_surface(C[0], C[1], C[2], color='blue', linewidth=1, antialiased=False)
 
-        if mpl:
+        if useMpl:
             self.axisEqual3D(ax)
             if fax is None:
                 mpl.show()
