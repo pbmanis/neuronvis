@@ -1,13 +1,14 @@
-from __future__ import print_function
-from pathlib import Path
-from neuron import h
-import neuron
-import collections
-import numpy as np
-import pyqtgraph as pg
 import os
 import re
-# import swc_to_hoc
+from typing import Union
+from pathlib import Path
+import collections
+import numpy as np
+from neuron import h
+import neuron
+import pyqtgraph as pg
+from . import swc_to_hoc
+
 
 class HocReader(object):
     """
@@ -16,28 +17,45 @@ class HocReader(object):
     Input:
         hoc: a hoc object or a "xxx.hoc" file name.
     """
-    def __init__(self, hoc, somaonly=False):
+
+    def __init__(self, hoc, somaonly=False) -> None:
         self.file_loaded = False
         self.somaonly = somaonly
-
+        print('hocreader: ', hoc)
         if isinstance(hoc, str) or isinstance(hoc, Path):  # only python 3 anymore
             success = 0
             fullfile = Path(os.getcwd(), hoc)
             if not fullfile.exists():
                 raise Exception("File not found: %s" % (str(fullfile)))
-            if fullfile.suffix in ['.hoc', '.hocx']:
-                neuron.h.hoc_stdout('/dev/null')  # prevent junk from printing while reading the file
+            if fullfile.suffix in [".hoc", ".hocx"]:
+                neuron.h.hoc_stdout(
+                    "/dev/null"
+                )  # prevent junk from printing while reading the file
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
+            elif fullfile.suffix in ['.swc']:
+                s = swc_to_hoc.SWC(filename=fullfile, secmap='swc')
+                hocl = s.write_hoc(None)
+                print(hocl)
+                hocstr = ''
+                for i in range(len(hocl)):
+                    hocstr += hocl[i]+'\n'
+                print(hocstr)
+                neuron.h(hocstr)
+                print('topology: ')
+                neuron.h.topology()
+                success = 1
             else:
-                raise ValueError('File must be a hoc file; use read_swc_cells or swc_to_hoc to convert files')
-            if success == 0: # indicates failure to read the file
+                raise ValueError(
+                    "File must be a hoc file; use read_swc_cells or swc_to_hoc to convert files"
+                )
+            if success == 0:  # indicates failure to read the file
                 raise NameError("Found file, but NEURON load failed: %s" % (fullfile))
             self.file_loaded = True
-            self.h = h # save a copy of the hoc object itself.
+            self.h = h  # save a copy of the hoc object itself.
 
         else:
-            self.h = hoc # just use the passed argument
+            self.h = hoc  # just use the passed argument
             self.file_loaded = True
         # geometry containers
         self.edges = None
@@ -61,7 +79,6 @@ class HocReader(object):
         sec_lists = self.get_section_lists()
         sec_prefixes = self.get_section_prefixes()
 
-
         # Add groupings by section list if possible:
         if len(sec_lists) > 1:
             self.add_groups_by_section_list(sec_lists)
@@ -71,14 +88,13 @@ class HocReader(object):
             for group, sections in sec_prefixes.items():
                 self.add_section_group(group, sections)
 
-
-    def update(self):
+    def update(self) -> None:
         """
         Update information on sections after external changes
         """
         self._read_section_info()
 
-    def get_section(self, sec_name):
+    def get_section(self, sec_name) -> object:
         """
         Return the hoc Section object with the given name.
         """
@@ -87,8 +103,7 @@ class HocReader(object):
         except KeyError:
             raise KeyError("No section named '%s'" % sec_name)
 
-
-    def get_section_prefixes(self):
+    def get_section_prefixes(self) -> dict:
         """
         Go through all the sections and generate a dictionary mapping their
         name prefixes to the list of sections with that prefix.
@@ -101,16 +116,16 @@ class HocReader(object):
              'soma': ['soma[0]']}
         """
         prefixes = {}
-        regex = re.compile('(?P<prefix>\w+)\[(\d*)\]')
+        regex = re.compile("(?P<prefix>\w+)\[(\d*)\]")
         for sec_name in self.sections:
             g = regex.match(sec_name)
             if g is None:
                 continue
-            prefix = g.group('prefix')
+            prefix = g.group("prefix")
             prefixes.setdefault(prefix, []).append(sec_name)
         return prefixes
 
-    def get_mechanisms(self, section):
+    def get_mechanisms(self, section: object) -> dict:
         """
         Get a set of all of the mechanisms inserted into a given section
         Input: section (hoc object)
@@ -119,7 +134,7 @@ class HocReader(object):
         """
         return self.mechanisms[section]
 
-    def get_density(self, section, mechanism):
+    def get_density(self, section: object, mechanism: list) -> float:
         """
         Get density mechanism that may be found the section.
         mechanism is a list ['name', 'gbarname']. This is needed because
@@ -138,30 +153,29 @@ class HocReader(object):
         gmech = []
         for seg in section:
             try:
-                x =  getattr(seg,  mechanism[0])
-                mecbar = '%s_%s' % (mechanism[1], mechanism[0])
+                x = getattr(seg, mechanism[0])
+                mecbar = "%s_%s" % (mechanism[1], mechanism[0])
                 if mecbar in dir(x):
                     gmech.append(getattr(x, mechanism[1]))
                 else:
-                    print('hoc_reader:get_density did not find the mechanism in dir x')
+                    print("hoc_reader:get_density did not find the mechanism in dir x")
             except NameError:
-                return(0.)
+                return 0.0
             except:
-                print('hoc_reader:get_density failed to evaluate the mechanisms... ')
+                print("hoc_reader:get_density failed to evaluate the mechanisms... ")
                 raise
 
-
-#        print gmech
+        #        print gmech
         if len(gmech) == 0:
-            gmech = 0.
+            gmech = 0.0
         return np.mean(gmech)
 
-    def get_sec_info(self, section):
+    def get_sec_info(self, section: object) -> str:
         """
         Get the info of the given section
         modified from: neuronvisio
         """
-        info = "<b>Section Name:</b> %s<br/>" %section.name()
+        info = "<b>Section Name:</b> %s<br/>" % section.name()
         info += "<b>Length [um]:</b> %f<br/>" % section.L
         info += "<b>Diameter [um]:</b> %f<br/>" % section.diam
         info += "<b>Membrane Capacitance:</b> %f<br/>" % section.cm
@@ -171,7 +185,7 @@ class HocReader(object):
         for seg in section:
             for mech in seg:
                 mechs.append(mech.name())
-        mechs = set(mechs) # Excluding the repeating ones
+        mechs = set(mechs)  # Excluding the repeating ones
 
         mech_info = "<b>Mechanisms in the section</b><ul>"
         for mech_name in mechs:
@@ -181,9 +195,9 @@ class HocReader(object):
         info += mech_info
         return info
 
-    def _read_section_info(self):
+    def _read_section_info(self) -> None:
         # Collect list of all sections and their mechanism names.
-        self.sec_index=collections.OrderedDict()
+        self.sec_index = collections.OrderedDict()
         self.sections = collections.OrderedDict()
         self.mechanisms = collections.OrderedDict()
         for i, sec in enumerate(self.h.allsec()):
@@ -197,17 +211,22 @@ class HocReader(object):
                     mechs.add(mech.name())
             self.mechanisms[sec.name()] = mechs
 
-    def hoc_namespace(self):
+    def hoc_namespace(self) -> dict:
         """
         Return a dict of the HOC namespace {'variable_name': hoc_object}.
         NOTE: this method requires NEURON >= 7.3
         """
         names = {}
-        for hvar in dir(self.h): # look through the whole list, no other way
+        for hvar in dir(self.h):  # look through the whole list, no other way
             try:
                 # some variables can't be pointed to...
-                if hvar in ['nseg', 'diam_changed', 'nrn_shape_changed_',
-                            'secondorder', 'stoprun']:
+                if hvar in [
+                    "nseg",
+                    "diam_changed",
+                    "nrn_shape_changed_",
+                    "secondorder",
+                    "stoprun",
+                ]:
                     continue
                 u = getattr(self.h, hvar)
                 names[hvar] = u
@@ -215,7 +234,7 @@ class HocReader(object):
                 continue
         return names
 
-    def find_hoc_hname(self, regex):
+    def find_hoc_hname(self, regex: str) -> list:
         """
         Return a list of the names of HOC objects whose *hname* matches regex.
         """
@@ -230,16 +249,14 @@ class HocReader(object):
                 continue
         return objs
 
+        # m = sid.match(hname)
+        # sections=[]
+        # if m is not None:
+        #     for v in getattr(self.h, hvar):
+        #         sections.append(v)
+        #     self.add_section_group(hvar, sections)
 
-            # m = sid.match(hname)
-            # sections=[]
-            # if m is not None:
-            #     for v in getattr(self.h, hvar):
-            #         sections.append(v)
-            #     self.add_section_group(hvar, sections)
-
-
-    def add_section_group(self, name, sections, overwrite=False):
+    def add_section_group(self, name: str, sections: list, overwrite=False) -> None:
         """
         Declare a grouping of sections (or section names). Sections may be
         grouped by any arbitrary criteria (cell, anatomical type, etc).
@@ -250,8 +267,10 @@ class HocReader(object):
 
         """
         if name in self.sec_groups and not overwrite:
-            raise Exception("Group name %s is already used (use overwrite=True)." % name)
-        if self.somaonly and name not in ['soma']:
+            raise Exception(
+                "Group name %s is already used (use overwrite=True)." % name
+            )
+        if self.somaonly and name not in ["soma"]:
             # print('not adding to section group: ', name)
             return
         group = set()
@@ -261,21 +280,21 @@ class HocReader(object):
             group.add(sec)
         self.sec_groups[name] = group
 
-    def get_section_group(self, name):
+    def get_section_group(self, name: str) -> list:
         """
         Return the set of section names in the group *name*.
         """
         return self.sec_groups[name]
 
-    def get_section_lists(self):
+    def get_section_lists(self) -> list:
         """
         Search through all of the hoc variables to find those that are "SectionLists"
         """
-        return self.find_hoc_hname(regex=r'SectionList\[')
-        #ns = self.hoc_namespace()
-        #return [name for name in ns if ns[name].hname().startswith('SectionList[')]
+        return self.find_hoc_hname(regex=r"SectionList\[")
+        # ns = self.hoc_namespace()
+        # return [name for name in ns if ns[name].hname().startswith('SectionList[')]
 
-    def add_groups_by_section_list(self, names):
+    def add_groups_by_section_list(self, names: list) -> None:
         """
         Add a new section groups from the hoc variables indicated in *names*.
 
@@ -290,14 +309,12 @@ class HocReader(object):
         # if a list is supplied, then the names of groups to create are
         # exactly the same as the names of hoc lists.
         if not isinstance(names, dict):
-            names = {name:name for name in names}
+            names = {name: name for name in names}
         for hoc_name, group_name in names.items():
             var = getattr(self.h, hoc_name)
             self.add_section_group(group_name, list(var))
 
-
-
-    def get_geometry(self):
+    def get_geometry(self) -> tuple:
         """
         modified from:neuronvisio
         Generate structures that describe the geometry of the sections and their segments (all segments are returned)
@@ -325,26 +342,24 @@ class HocReader(object):
         for secid, sec in enumerate(self.sections.values()):
             x_sec, y_sec, z_sec, d_sec = self.retrieve_coordinate(sec)
 
-            for i,xi in enumerate(x_sec):
+            for i, xi in enumerate(x_sec):
                 vertexes.append(((x_sec[i], y_sec[i], z_sec[i]), d_sec[i], secid))
                 indx_geom_seg = len(vertexes) - 1
                 if len(vertexes) > 1 and i > 0:
-                    connections.append([indx_geom_seg, indx_geom_seg-1])
-
+                    connections.append([indx_geom_seg, indx_geom_seg - 1])
 
         self.edges = np.array(connections)
-        self.vertexes = np.empty(len(vertexes), dtype=[
-            ('pos', float, 3),
-            ('dia', float),
-            ('sec_index', int)])
+        self.vertexes = np.empty(
+            len(vertexes), dtype=[("pos", float, 3), ("dia", float), ("sec_index", int)]
+        )
         self.vertexes[:] = vertexes
         return self.vertexes, self.edges
 
-    def retrieve_coordinate(self, sec):
+    def retrieve_coordinate(self, sec: object) -> tuple:
         """Retrieve the coordinates of the section avoiding duplicates"""
 
         sec.push()
-        x, y, z, d = [],[],[],[]
+        x, y, z, d = [], [], [], []
 
         tot_points = 0
         connect_next = False
@@ -356,22 +371,21 @@ class HocReader(object):
             d_i = self.h.diam3d(i)
             # Avoiding duplicates in the sec
             if x_i in x:
-                ind = len(x) - 1 - x[::-1].index(x_i) # Getting the index of last value
+                ind = len(x) - 1 - x[::-1].index(x_i)  # Getting the index of last value
                 if y_i == y[ind]:
                     if z_i == z[ind]:
                         present = True
 
             if not present:
-                k =(x_i, y_i, z_i)
+                k = (x_i, y_i, z_i)
                 x.append(x_i)
                 y.append(y_i)
                 z.append(z_i)
                 d.append(d_i)
         self.h.pop_section()
-        return (np.array(x),np.array(y),np.array(z),np.array(d))
+        return (np.array(x), np.array(y), np.array(z), np.array(d))
 
-
-    def make_volume_data(self, resolution=0.4, max_size=200e6):
+    def make_volume_data(self, resolution: float = 0.4, max_size:float=200e6) -> tuple:
         """
         Using the current state of vertexes, edges, generates a scalar field
         useful for building isosurface or volumetric renderings.
@@ -385,20 +399,19 @@ class HocReader(object):
                 coordinates.
         """
 
-        res = 0.5 # resolution of scalar field in microns
-        maxdia = 25. # maximum diameter (defines shape of kernel)
-        kernel_size = int(maxdia/res) + 1 # width of kernel
+        res = 0.5  # resolution of scalar field in microns
+        maxdia = 25.0  # maximum diameter (defines shape of kernel)
+        kernel_size = int(maxdia / res) + 1  # width of kernel
 
         vertexes, lines = self.get_geometry()
 
-        maxdia = vertexes['dia'].max() # maximum diameter (defines shape of kernel)
-        kernel_size = int(maxdia/resolution) + 3 # width of kernel
-
+        maxdia = vertexes["dia"].max()  # maximum diameter (defines shape of kernel)
+        kernel_size = int(maxdia / resolution) + 3  # width of kernel
 
         # read vertex data
-        pos = vertexes['pos']
-        d = vertexes['dia']
-        sec_id = vertexes['sec_index']
+        pos = vertexes["pos"]
+        d = vertexes["dia"]
+        sec_id = vertexes["sec_index"]
 
         # decide on dimensions of scalar field
         mx = pos.max(axis=0)
@@ -409,7 +422,10 @@ class HocReader(object):
         # prepare blank scalar field for drawing
         size = np.dtype(np.float32).itemsize * shape[0] * shape[1] * shape[2]
         if size > max_size:
-            raise Exception("Scalar field would be larger than max_size (%dMB > %dMB)" % (size/1e6, max_size/1e6))
+            raise Exception(
+                "Scalar field would be larger than max_size (%dMB > %dMB)"
+                % (size / 1e6, max_size / 1e6)
+            )
         scfield = np.zeros(shape, dtype=np.float32)
         scfield[:] = -1000
 
@@ -419,63 +435,70 @@ class HocReader(object):
 
         # map vertex locations to voxels
         vox_pos = pos.copy()
-        vox_pos -= mn.reshape((1,3))
-        vox_pos *= 1./resolution
+        vox_pos -= mn.reshape((1, 3))
+        vox_pos *= 1.0 / resolution
 
         # Define kernel used to draw scalar field along dendrites
-        def cone(i,j,k):
+        def cone(i, j, k):
             # value decreases linearly with distance from center of kernel.
             w = kernel_size / 2
-            return w - ((i-w)**2 + (j-w)**2 + (k-w)**2)**0.5
-        kernel = resolution * np.fromfunction(cone, (kernel_size,)*3)
+            return w - ((i - w) ** 2 + (j - w) ** 2 + (k - w) ** 2) ** 0.5
+
+        kernel = resolution * np.fromfunction(cone, (kernel_size,) * 3)
         kernel -= kernel.max()
 
-        def array_intersection(arr1, arr2, pos):
+        def array_intersection(arr1, arr2: np.ndarray, pos: list) -> object:
             """
             Return slices used to access the overlapping area between two
             arrays that are offset such that the origin of *arr2* is a *pos*
             relative to *arr1*.
             """
-            s1 = [0]*3
-            s2 = [0]*3
-            t1 = [0]*3
-            t2 = [0]*3
+            s1 = [0] * 3
+            s2 = [0] * 3
+            t1 = [0] * 3
+            t2 = [0] * 3
             pos = list(map(int, pos))  # python 3 returns an interator, not a list/tuple
             for axis in range(3):
                 s1[axis] = max(0, -pos[axis])
-                s2[axis] = min(arr2.shape[axis], arr1.shape[axis]-pos[axis])
+                s2[axis] = min(arr2.shape[axis], arr1.shape[axis] - pos[axis])
                 t1[axis] = max(0, pos[axis])
-                t2[axis] = min(arr1.shape[axis], pos[axis]+arr2.shape[axis])
-            slice1 = (slice(t1[0],t2[0]), slice(t1[1],t2[1]), slice(t1[2],t2[2]))
-            slice2 = (slice(s1[0],s2[0]), slice(s1[1],s2[1]), slice(s1[2],s2[2]))
+                t2[axis] = min(arr1.shape[axis], pos[axis] + arr2.shape[axis])
+            slice1 = (slice(t1[0], t2[0]), slice(t1[1], t2[1]), slice(t1[2], t2[2]))
+            slice2 = (slice(s1[0], s2[0]), slice(s1[1], s2[1]), slice(s1[2], s2[2]))
             return slice1, slice2
 
-        vox_pos[:,0] = np.clip(vox_pos[:,0], 0, scfield.shape[0]-1)
-        vox_pos[:,1] = np.clip(vox_pos[:,1], 0, scfield.shape[1]-1)
-        vox_pos[:,2] = np.clip(vox_pos[:,2], 0, scfield.shape[2]-1)
+        vox_pos[:, 0] = np.clip(vox_pos[:, 0], 0, scfield.shape[0] - 1)
+        vox_pos[:, 1] = np.clip(vox_pos[:, 1], 0, scfield.shape[1] - 1)
+        vox_pos[:, 2] = np.clip(vox_pos[:, 2], 0, scfield.shape[2] - 1)
         for c in range(lines.shape[0]):
             i = lines[c, 0]
             j = lines[c, 1]
             p1 = vox_pos[i].copy()
             p2 = vox_pos[j].copy()
-            diff = p2-p1
+            diff = p2 - p1
             axis = np.argmax(np.abs(diff))
             dia = d[i]
-            nvoxels = abs(int(diff[axis]))+1
+            nvoxels = abs(int(diff[axis])) + 1
             for k in range(nvoxels):
-                kern = kernel + (dia/2.0)
-                sl1, sl2 = array_intersection(scfield, kern, p1) # find the overlapping area between the field and the kernel
-                idfield[sl1] = np.where(scfield[sl1] > kern[sl2], idfield[sl1], sec_id[i])
-                scfield[sl1] = np.where(scfield[sl1] > kern[sl2], scfield[sl1], kern[sl2])
-                #stamp_array(scfield, kern, p1)
-                #stamp_array(idfield, kern, p1)
-                dia += (d[j]-d[i]) / nvoxels
+                kern = kernel + (dia / 2.0)
+                sl1, sl2 = array_intersection(
+                    scfield, kern, p1
+                )  # find the overlapping area between the field and the kernel
+                idfield[sl1] = np.where(
+                    scfield[sl1] > kern[sl2], idfield[sl1], sec_id[i]
+                )
+                scfield[sl1] = np.where(
+                    scfield[sl1] > kern[sl2], scfield[sl1], kern[sl2]
+                )
+                # stamp_array(scfield, kern, p1)
+                # stamp_array(idfield, kern, p1)
+                dia += (d[j] - d[i]) / nvoxels
                 p1 += diff / nvoxels
 
         # return transform relating volume data to original vertex data
         transform = pg.Transform3D()
-        w = resolution * kernel_size / 2 # offset introduced due to kernel
-        transform.translate(*(mn-w))
+        w = resolution * kernel_size / 2  # offset introduced due to kernel
+        transform.translate(*(mn - w))
         transform.scale(resolution, resolution, resolution)
         transform.translate(1, 1, 1)
         return scfield, idfield, transform
