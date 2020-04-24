@@ -20,7 +20,8 @@ setup(name='neuronvis',
       entry_points={
           'console_scripts': [
                'hocRender=neuronvis.hocRender:main',
-               'swc_to_hoc=neuronvis.swc_to_hoc:main'
+               'swc_to_hoc=neuronvis.swc_to_hoc:main',
+               'hocViewer=neuronvis.viewer:main',
                ],
           # 'gui_scripts': [
           #       'event_monger=src.event_monger:main',
