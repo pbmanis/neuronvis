@@ -138,7 +138,7 @@ class HocViewer(gl.GLViewWidget):
         MC = mayavi_Cylinders(self.hr, color=color, label=label, flags=flags)
         return(MC.g)
 
-    def draw_mayavi_graph(self, color=None, label=None, flags=None):
+    def draw_mayavi_graph(self, color=None, label=None, flags=None) -> object:
         MG = mayavi_graph(self.hr, color=color, label=label, flags=flags)
         return(MG.g)
 
