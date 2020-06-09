@@ -41,50 +41,43 @@ from .hoc_viewer import HocViewer
 from . import hoc_graphics
 
 # define all display_modes here.
-display_modes = {
+display_mode = {
     "sec-type": "Sections colored by type",
     "vm": "Animation of per-section membrane voltage over time.",
+    "mechanisms": "Show distribution of selected mechanism",
+}
+
+display_style = {
     "graph": "Simple wireframe rendering.",
     "cylinders": "Simple cylinder rendering.",
     "volume": "simple volume rendering",
     "surface": "uncolored surface rendering.",
-    "mpl": "render using matplotlib (cylinders)",
-    "mpl_graph": "render using matplotlib (lines)",
-    "mayavi": "Render with mayavi",
-    "vispy": "render using vispy",
 }
 
-# Handle display_mode line arguments.
-# might introduce real display_mode line parsing later..
-##########################################################
-
-
-def error() -> None:
-    print("Usage: hocRender input_file display_mode")
-    print("  input_file may be either *.hoc defining section properties or")
-    print("  *.p containing simulation results.\n")
-    print("Available display_modes:")
-    for cmd, desc in display_modes.items():
-        print("  " + cmd + ":")
-        print("\n".join(["    " + line for line in desc.split("\n")]))
-    sys.exit(-1)
+display_renderer = {
+    "pyqtgraph": "render with pyqtgraph",
+    "mpl": "render using matplotlib ",
+    "mayavi": "Render with mayavi",
+    # "vispy": "render using vispy",
+}
 
 
 # Handle display_modes
 ##########################################################
-
+# colors are from XKCD color list. Sorry folks.
+#
 section_colors = {
     "axon": "green",  # in this dict, we handle multiple labels for the same structure.
     "Axon_Initial_Segment": "cyan",
     "initialsegment": "cyan",
     "initseg": "cyan",
     "ais": "cyan",
-    "hillock": "orange",
-    "Axon_Hillock": "orange",
+    "hillock": "dark cyan",
+    "Axon_Hillock": "dark cyan",
     "myelinatedaxon": "white",
     "Myelinated_Axon": "white",
-    "unmyelinatedaxon": "orange",
-    "Unmyelinated_Axon": "orange",
+    "unmyelinatedaxon": "light cyan",
+    "Unmyelinated_Axon": "light cyan",
     "soma": "blue",
     "somatic": "blue",
     "Soma": "blue",
@@ -93,9 +86,9 @@ section_colors = {
     "Distal_Dendrite": "yellow",
     "dend": "magenta",
     "dendrite": "magenta",
-    "Proximal_Dendrite": "wintergreen",
+    "Proximal_Dendrite": "dandelion", # "wintergreen",
     "basal": "magenta",
-    "Dendritic_Swelling": "powder blue",
+    "Dendritic_Swelling": "ochre",
     "Dendritic_Hub": "neon red",
     # calyx specific
     "heminode": "green",
@@ -112,20 +105,22 @@ section_colors = {
 class Render(object):
     def __init__(
         self,
-        display_mode="cylinders",
-        renderer="pyqtgraph",
-        display=None,
+        display_style="cylinders",
+        display_renderer="pyqtgraph",
+        display_mode="sec-type",
         mechanism=None,
         fighandle=None,
         hoc_file=None,
         sim_data=None,
+        output_file=None,
         fax=None,
         somaonly=False,
         color="blue",
-        alpha=0.5,
+        alpha=1.0,
         label=None,
         flags=None,
     ) -> None:
+
 
         if hoc_file == 'select':
             FS = fileselector.FileSelector(
@@ -141,47 +136,47 @@ class Render(object):
                 exit()
         self.color = color
         hoc = HocReader(hoc_file, somaonly=somaonly)
-        self.renderer = renderer
-        self.view = HocViewer(hoc, renderer=renderer, fighandle=fighandle)
+        self.renderer = display_renderer
+        self.view = HocViewer(hoc, renderer=display_renderer, fighandle=fighandle)
         self.label = label
         self.alpha = alpha
         # print("Section groups:")
         # print(self.view.hr.sec_groups.keys())
-        if display_mode == "volume":
-            if renderer == "pyqtgraph":
+        if display_style == "volume":
+            if display_renderer== "pyqtgraph":
                 g = self.view.draw_volume()
-            elif renderer == "mayavi":
+            elif display_renderer== "mayavi":
                 g = self.view.draw_volume_mayavi()
             else:
                 raise ValueError("Can only render volume with pyqtgraph and mayavi")
 
-        elif display_mode == "surface":
+        elif display_style == "surface":
             g = self.view.draw_surface()
-            self.color_map(g, display, mechanism=mechanism, alpha=self.alpha)
+            self.color_map(g, display_mode, colors=section_colors, mechanism=mechanism, alpha=self.alpha)
 
-        elif display_mode == "graph":
-            if renderer == "pyqtgraph":
+        elif display_style == "graph":
+            if display_renderer== "pyqtgraph":
                 g = self.view.draw_graph()
                 self.color_map(
-                    g, display, mechanism=mechanism,
+                    g, display, mechanism=mechanism, alpha = self.alpha,
                 )
-            elif renderer == "mpl":
+            elif display_renderer== "mpl":
                 g = self.view.draw_mpl_graph(fax=fax)
-            elif renderer == "mayavi":
+            elif display_renderer== "mayavi":
                 g = self.view.draw_mayavi_graph(
                     color=self.color, label=label, flags=flags
                 )
             else:
                 raise ValueError("Can only render graph in pyqtgraph, matplotlib and mayavi ")
 
-        elif display_mode == "cylinders":
-            if renderer == "pyqtgraph":
+        elif display_style == "cylinders":
+            if display_renderer== "pyqtgraph":
                 g = self.view.draw_cylinders()
-                self.color_map(g, display, mechanism=mechanism, alpha=self.alpha)
-            elif renderer == "mpl":
+                self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+            elif display_renderer=="mpl":
                 g = self.view.draw_mpl(fax=fax)
-                self.color_map(g, display, mechanism=mechanism, alpha=self.alpha)
-            elif renderer == "mayavi":
+                self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+            elif display_renderer== "mayavi":
                 g = self.view.draw_mayavi_cylinders(
                     color=self.color, label=label, flags=flags
                 )
@@ -191,7 +186,7 @@ class Render(object):
             else:
                 raise ValueError("Can only render cylinders in pyqtgraph, matplotlib and mayavi ")
 
-        elif display_mode == "vispy":
+        elif display_renderer == "vispy":
             g = self.view.draw_vispy()
 
         elif display_mode == "vm":
@@ -207,21 +202,42 @@ class Render(object):
             loopCount = 0
             nloop = 1
 
+        if display_renderer== "pyqtgraph":
+            print('pyqtgraph')
+            import pyqtgraph as pg
+            if output_file is not None:
+                print(f"Saving to outputfile: {str(output_file):s}")
+                # print(dir(self.view))
+                img = pg.makeQImage(self.view.renderToArray((1000, 1000)))
+                img.save(output_file)
+            elif sys.flags.interactive == 0:
+                pg.Qt.QtGui.QApplication.exec_()
+                
+        if display_renderer== "mayavi":
+            mlab.show()
+        if display_renderer== "mpl":
+            import matplotlib.pyplot as mpl
+
+            mpl.show()
+
     def color_map(
         self,
         g: object,
-        display: str,
+        display_mode: str,
         mechanism: Union[str, None] = None,
+        colors:dict=section_colors,
         alpha: float = 1.0,
     ) -> None:
         assert g is not None
-        if display == "sec-type":
-            print('alpha: ', alpha)
-            g.set_group_colors(section_colors, alpha=alpha)
-        if display == "mechanism" and (
+        if display_mode == "sec-type":
+            print('sec type with alpha: ', alpha)
+            g.set_group_colors(colors, alpha=alpha)
+        if display_mode == "mechanism" and (
+            
             mechanism is not "None" or mechanism is not None
         ):
-            g.set_group_colors(section_colors, mechanism=mechanism)
+            print('Setting color map by mechanism: ', mechanism)
+            g.set_group_colors(colors, mechanism=mechanism)
 
     def vm_to_color(self, v: np.ndarray) -> np.ndarray:
         """
@@ -306,27 +322,27 @@ def main() -> None:
     parser.add_argument(
         "--renderer",
         "-r",
-        dest="renderer",
+        dest="display_renderer",
         action="store",
         default="pyqtgraph",
-        choices=["pyqtgraph", "vispy", "mayavi", "mpl"],
-        help="Select the renderer (default pyqtgraph)",
+        choices=["pyqtgraph", "mayavi", "mpl"], # vispy but not really implemented yet
+        help="Select thedisplay_renderer(default pyqtgraph)",
+    )
+
+    parser.add_argument(
+        "-style",
+        "-s",
+        dest="display_style",
+        action="store",
+        default="cylinders",
+        choices=["cylinders", "graph", "volume", "surface",],
+        help="Select the display mode (default: cylinders)",
     )
 
     parser.add_argument(
         "--mode",
         "-m",
-        dest="displaymode",
-        action="store",
-        default="cylinders",
-        choices=["cylinders", "graph", "volume", "surface", "sec-type"],
-        help="Select the display mode (default: cylinders)",
-    )
-
-    parser.add_argument(
-        "--display",
-        "-d",
-        dest="display",
+        dest="display_mode",
         action="store",
         default="None",
         choices=["vm", "sec-type", "mechanism"],
@@ -353,8 +369,6 @@ def main() -> None:
 
     args = vars(parser.parse_args())
 
-    display_mode = args["displaymode"]
-
     hoc_file = None
     sim_data = None
     # read input file(s)
@@ -379,25 +393,14 @@ def main() -> None:
 
     Render(
         hoc_file=hoc_file,
-        display_mode=display_mode,
-        renderer=args["renderer"],
-        display=args["display"],
+        display_style=args["display_style"],
+        display_renderer=args["display_renderer"],
+        display_mode=args["display_mode"],
         mechanism=args["mechanism"],
         alpha=args["alpha"],
         sim_data=sim_data,
     )
 
-    if args["renderer"] == "pyqtgraph":
-        if sys.flags.interactive == 0:
-            import pyqtgraph as pg
-
-            pg.Qt.QtGui.QApplication.exec_()
-    if args["renderer"] == "mayavi":
-        mlab.show()
-    if args["renderer"] == "mpl":
-        import matplotlib.pyplot as mpl
-
-        mpl.show()
 
 
 if __name__ == "__main__":

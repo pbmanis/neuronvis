@@ -14,7 +14,8 @@ setup(name='neuronvis',
       author_email='pmanis@med.unc.edu',
       license='MIT',
       packages=find_packages(include=['neuronvis*']),
-      install_requires=['matplotlib>=3.0', 'numpy>=1.1', 'mayavi'
+      install_requires=['matplotlib>=3.0', 'numpy>=1.14'#, 'mayavi==4.7.1',
+          #'vtk==8.1.2',
           ],
       zip_safe=False,
       entry_points={

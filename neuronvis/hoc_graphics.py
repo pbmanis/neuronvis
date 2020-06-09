@@ -6,6 +6,9 @@ from typing import Union
 import pyqtgraph as pg
 
 import matplotlib.pyplot as mpl
+import matplotlib.colors
+import matplotlib.cm
+
 from mpl_toolkits.mplot3d import axes3d
 from . import mplcyl
 from mayavi import mlab
@@ -50,6 +53,69 @@ def compute_cube(cube_definition):
             [points[6], points[7]],
         ]
     return points, edges
+
+def setMapColors(colormapname: str, reverse: bool = False) -> object:
+    """ matplotlib color schemes
+    """
+    cmnames = dir(matplotlib.cm)
+    cmnames = [c for c in cmnames if not c.startswith("__")]
+    if colormapname == "parula":
+        colormapname = "snshelix"
+    elif colormapname == "cubehelix":
+        cm_sns = seaborn.cubehelix_palette(
+            n_colors=6,
+            start=0,
+            rot=0.4,
+            gamma=1.0,
+            hue=0.8,
+            light=0.85,
+            dark=0.15,
+            reverse=reverse,
+            as_cmap=False,
+        )
+    elif colormapname == "snshelix":
+        cm_sns = seaborn.cubehelix_palette(
+            n_colors=64,
+            start=3,
+            rot=0.5,
+            gamma=1.0,
+            dark=0,
+            light=1.0,
+            reverse=reverse,
+            as_cmap=True,
+        )
+    elif colormapname in cmnames:
+        cm_sns = mpl.cm.get_cmap(colormapname)
+    # elif colormapname == 'a':
+    #     cm_sns = matplotlib.colors.LinearSegmentedColormap.from_list('option_a', colormaps.option_a.cm_data)
+    # elif colormapname == 'b':
+    #     cm_sns = matplotlib.colors.LinearSegmentedColormap.from_list('option_b', colormaps.option_b.cm_data)
+    # elif colormapname == 'c':
+    #     cm_sns = matplotlib.colors.LinearSegmentedColormap.from_list('option_c', colormaps.option_c.cm_data)
+    # elif colormapname == 'd':
+    #     cm_sns = matplotlib.colors.LinearSegmentedColormap.from_list('option_d', colormaps.option_d.cm_data)
+    # elif colormapname == 'parula':
+    #     cm_sns = matplotlib.colors.LinearSegmentedColormap.from_list('parula', colormaps.parula.cm_data)
+    else:
+        print(
+            '(analyzemapdata) Unrecongnized color map {0:s}; setting to "snshelix"'.format(
+                colormapname
+            )
+        )
+        cm_sns = seaborn.cubehelix_palette(
+            n_colors=64,
+            start=3,
+            rot=0.5,
+            gamma=1.0,
+            dark=0,
+            light=1.0,
+            reverse=reverse,
+            as_cmap=True,
+        )
+    # elif colormapname == '
+    return cm_sns
+
+cm_sns = setMapColors("CMRmap")
 
 # mayavi functions
 def refaxes(scene=None, ext=[80, 75, 55]):
@@ -99,7 +165,75 @@ class HocGraphic(object):
         """
         raise NotImplementedError()
 
-    def set_group_colors(self, colors, default_color=(0.5,0.5,0.5,0.5), alpha=None, mechanism=None, colormap=None):
+    def set_group_colors(self, colors, default_color=(0.5,0.5,0.5,0.5), alpha=1.0, mechanism=None, colormap=None):
+        """
+        Color the sections in the reconstruction according to their
+        group name.
+        Inputs:
+            colors: a dictionary of section group names and their associated colors
+            default_color: color to use for any sections that are not included in the
+                           groups listed in *colors*.
+            alpha: If specified, this overrides the alpha value for all group colors.
+        Side-effects: none.
+        """
+        sec_colors = np.zeros((len(self.h.sections), 4), dtype=float)
+        sec_colors[:] = default_color
+        mechmax = 0.0
+        cmap = pg.ColorMap([0, 0.25, 0.6, 1.0], [(0,0,0), (1,0,0), (1,1,0), (1,1,1)])
+        # print('set group colors')
+        dsecs = []
+        for group_name, color in colors.items():
+            sections = self.h.get_section_group(group_name)
+            if sections is None:
+                continue
+            for sec_name in sections:
+                if isinstance(color, str):
+                    color = Colors[color]
+                index = self.h.sec_index[sec_name]
+
+                # print('mechanism: ', mechanism)
+                if mechanism not in [None, 'None']:
+                    g = self.h.get_density(self.h.sections[sec_name], mechanism)
+                    mechmax  = max(mechmax, g)
+                    sec_colors[index, 3] = g  # use the alpha channel to se4t the color
+                else:
+                    sec_colors[index] = color
+        mechmax = np.max(sec_colors[:,3])
+        mechmin = np.min(sec_colors[:,3])
+        # print('mechmax/min: ', mechmax, mechmin)
+   #      print(sec_colors)
+        if mechanism not in [None, 'None'] and mechmax > 0.0:
+            for i, c in enumerate(sec_colors):
+                rgb = cmap.map(c[3]/mechmax, 'float')
+                c[:3] = rgb*255. # set alpha for all sections
+                c[3] = alpha
+        self.set_section_colors(sec_colors)
+
+class mplGraphic(object):
+    """
+    Methods common to all mpl graphical representation classes (mplCylinders, mplVolume,
+    mplSurface, etc.)
+
+    """
+    def __init__(self, h, parentItem=None, **kwds):
+        self.h = h
+        self.cmx = matplotlib.cm.ScalarMappable(norm=norm, cmap=cm_sns)
+        print('init mplGraphic')
+
+    def get_color_map(self, i):
+        return colorMap[i]
+
+    def set_section_colors(self, colors):
+        """
+        Recolor the graphic by section using the *colors* array. This method
+        must be reimplemented by HocGraphic subclasses. The order of elements
+        in the array must match the order of sections defined in
+        HocReader.sections.
+        """
+        print('mplgraphic: set _section_colors')
+        raise NotImplementedError()
+
+    def set_group_colors(self, colors, default_color=(0.5,0.5,0.5,1), alpha=1, mechanism=None, colormap=None):
         """
         Color the sections in the reconstruction according to their
         group name.
@@ -113,44 +247,300 @@ class HocGraphic(object):
         sec_colors = np.zeros((len(self.h.sections), 4), dtype=float)
         sec_colors[:] = default_color
         mechmax = 0.
+        cmap = self.cmx
+        # print('set group colors')
+        dsecs = []
         for group_name, color in colors.items():
-            try:
-                sections = self.h.get_section_group(group_name)
-            except KeyError:
+            sections = self.h.get_section_group(group_name)
+            if sections is None:
                 continue
-
             for sec_name in sections:
                 if isinstance(color, str):
                     color = Colors[color]
                 index = self.h.sec_index[sec_name]
-                sec_colors[index] = color
-                if mechanism is not None:
+                # print(index, color)
+                if mechanism is None:
+                    sec_colors[index] = color
+                if mechanism not in [None, 'None']:
                     g = self.h.get_density(self.h.sections[sec_name], mechanism)
-                    #print ('section: %s, gmax = %f' % (sec_name, g))
                     mechmax  = max(mechmax, g)
                     sec_colors[index,3] = g
-                if alpha is not None:
+                    # if group_name not in dsecs:
+                   #      print ('section: %s, group: %s, mech: %s, gmax = %f' % (sec_name, group_name, mechanism, g))
+                   #      print('group: ', group_name, sec_colors[index], g)
+                   #      dsecs.append(group_name)
+                    # if alpha is not None:
                     sec_colors[index, 3] = alpha
                     print('  set group colors alpha: ', alpha)
            # print (mechmax)
-        if mechanism is not None and mechmax > 0:
-            sec_colors[:,3] = 0.05 + 0.95*sec_colors[:,3]/mechmax # set alpha for all sections
-        print(sec_colors)
+        # print('sec colors: ', sec_colors)
+        mechmax = np.max(sec_colors[:,3])
+        mechmin = np.min(sec_colors[:,3])
+        if mechanism not in [None, 'None'] and mechmax > 0.0:
+            sec_colors = cmx.to_rgba(np.clip(sec_colors[3], 0.0, mechmax))
+            
+            # for i, c in enumerate(sec_colors):
+            #     rgb = cmap.map(c[3]/mechmax, 'float')
+            #     c[:3] = rgb*255. # set alpha for all sections
+            #     c[3] = 1.0
         self.set_section_colors(sec_colors)
+
+
+class HocCylinders(HocGraphic, gl.GLMeshItem):
+    """
+    Subclass of GLMeshItem that draws a cylinder representation of the geometry
+    specified by a HocReader.
+
+    Input:
+        h: HocReader instance
+    """
+    def __init__(self, h):
+        super(HocGraphic, self).__init__()
+        self.h = h
+        verts, edges = h.get_geometry()
+        print('HOC Cylinders')
+        meshes = []
+        sec_ids = []
+        for edge in edges:
+            ends = verts['pos'][edge]
+            dia = verts['dia'][edge]
+            sec_id = verts['sec_index'][edge[0]]
+
+            dif = ends[1]-ends[0]
+            length = (dif**2).sum() ** 0.5
+
+            mesh = gl.MeshData.cylinder(rows=1, cols=8, radius=[dia[0]/2., dia[1]/2.], length=length)
+            mesh_verts = mesh.vertexes(indexed='faces')
+
+            # Rotate cylinder vertexes to match segment
+            p1 = pg.Vector(*ends[0])
+            p2 = pg.Vector(*ends[1])
+            z = pg.Vector(0,0,1)
+            axis = pg.QtGui.QVector3D.crossProduct(z, p2-p1)
+            ang = z.angle(p2-p1)
+            tr = pg.Transform3D()
+            tr.translate(ends[0][0], ends[0][1], ends[0][2]) # move into position
+            tr.rotate(ang, axis.x(), axis.y(), axis.z())
+            mesh_verts = pg.transformCoordinates(tr, mesh_verts, transpose=True)
+            sec_id_array = np.empty(mesh_verts.shape[0]*3, dtype=int)
+            sec_id_array[:] = sec_id
+            meshes.append(mesh_verts)
+            sec_ids.append(sec_id_array)
+
+        self.vertex_sec_ids = np.concatenate(sec_ids, axis=0)
+        mesh_verts = np.concatenate(meshes, axis=0)
+
+        md = gl.MeshData(vertexes=mesh_verts)
+        """
+        shaders:
+        shaded : light (seems to come from inside? )
+        normalColor: rainbow effect; varies with viewing angle
+        balloon " hard color not "shaded" for dimension; a bit cartoonish
+        edgeHilight like balloon, but highlight on edges
+        heightColor  uggh
+         """ 
+        #gl.GLMeshItem.__init__(self, meshdata=md, shader='balloon', glOptions='additive') # 'balloon') # 'shaded')
+        gl.GLMeshItem.__init__(self, meshdata=md, smooth=True, shader='balloon', glOptions='opaque') # 'balloon') # 'shaded')
+
+    def set_section_colors(self, sec_colors):
+        colors = sec_colors[self.vertex_sec_ids]
+        self.opts['meshdata'].setVertexColors(colors, indexed='faces')
+        self.meshDataChanged()
+
+class mayavi_Cylinders(object):
+    def __init__(self, h, color=(0,0,1), label=None, flags=None):
+        self.h = h
+        hcyl = mplcyl.TruncatedCone()
+        #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
+        verts, edges = h.get_geometry()
+        # print ('edges', edges)
+        # print ('verts[pos]: ', verts['pos'])
+        # print ('verts', verts)
+        meshes = []
+        sec_ids = []
+        if isinstance(color, str):
+            if color in list(Colors.keys()):
+                color = tuple(Colors[color])[0:3]
+            else:
+                raise ValueError("Color string %s not in Colors table" % color)
+        XC = []
+        YC = []
+        ZC = []
+        S = []
+        connections = []
+        index = 0
+        lastend = None
+        ne = len(edges)
+        # print('# edges: ', ne)
+        ndone = 0
+        for ind, edge in enumerate(edges): # # of edges corresponds to N-1 section indiators; and to # of cones
+            ends = verts['pos'][edge]  # xyz coordinate of one end [x,y,z]
+            dia = verts['dia'][edge]  # diameter at that end
+            C, T, B = hcyl.make_truncated_cone(p0=ends[1], p1=ends[0], R=[dia[1]/2., dia[0]/2.])
+
+            XC.extend(C[0])
+            YC.extend(C[1])
+            ZC.extend(C[2])
+            XC.append(np.array([np.nan, np.nan]))  # disconnect adjacent cylinders to avoid "strings"
+            YC.append(np.array([np.nan, np.nan]))
+            ZC.append(np.array([np.nan, np.nan]))
+            # mlab.mesh(XC, YC, ZC, color=color, line_width=0.0) # mesh so far
+
+            N = len(C[0])
+            connections.append(np.vstack(
+                                   [np.arange(index,   index + N - 1.5),
+                                    np.arange(index + 1, index + N - 0.5)]
+                                        ).T)
+
+            index += N
+            # print('XC: ', len(XC), '\n', XC)
+        # XC = np.hstack(XC)
+        # YC = np.hstack(YC)
+        # ZC = np.hstack(ZC)
+        # S = np.hstack(S)
+
+        # connections = np.vstack(connections)
+        # # Create the points
+        # src = mlab.pipeline.scalar_scatter(XC, YC, ZC)
+        # src = mlab.pipeline.grid_source(XC, YC, ZC)
+        # src.parent.parent.filter.vary_radius = 'vary_radius_by_scalar'
+
+        # # Connect them
+        # src.mlab_source.dataset.lines = connections
+#         src.update()
+#         # #
+#         # # # The stripper filter cleans up connected lines
+#         lines = mlab.pipeline.stripper(src)
+## mesh = mlab.pipeline.delaunay3d(src)
+        # Finally, display the set of lines
+        # surface(lines... )
+        # t = mlab.pipeline.surface(src, color=color, line_width=.0, opacity=1)
+        m = mlab.mesh(XC, YC, ZC, color=color, line_width=0.0, opacity=1.0)
+        # self.cursor3d = mlab.points3d(0., 0., 0., mode='2darrow',
+        #                         color=(1, 1, 1), [-10, 10, -10, 10, -10, 10],
+        #                         scale_factor=0.5)
+        if flags is not None:
+            if 'norefaxes' not in flags:
+                refaxes()
+            if 'norefline' not in flags:
+                reflines()
+        else:
+            refaxes()
+            reflines()
+
+        if label is not None and 'text' in flags:
+            # print('cylinder: ', label, XC[0], YC[0], ZC[0])
+            mlab.text3d(XC[0][0]+5, YC[0][0], ZC[0][0], f"{label:s}", color=color, figure=None, scale=2.0)
+        self.g = m
+        #mlab.plot3d(XC, YC, ZC, color=color, tube_radius=0.5)
+       #  ext = 200.
+       #  x0 = [-ext, ext,     0.,    0.,    0.,   0.]
+       #  y0 = [   0.,   0.,  -ext,  ext,    0.,   0.]
+       #  z0 = [   0.,   0.,     0.,    0., -ext, ext]
+       #  colc = [(1,0,0), (0,1,0), (0,0,1)]
+       #  axisname = [f"x ({ext:.0f})", 'y', 'z']
+       #  for j, i in enumerate([0, 2, 4]):
+       #      mlab.plot3d(x0[i:i+2], y0[i:i+2], z0[i:i+2], color=colc[j], tube_radius=1.0)
+       #      mlab.text3d(x0[i], y0[i], z0[i], f"{axisname[j]:s}", scale=12.0)
+
+        # mlab.mesh(X, Y, Z)
+
+
+class mpl_Cylinders(mplGraphic):
+    """
+    Input:
+        h: HocReader instance
+    """
+
+    def __init__(self, h, useMpl=True, fax=None):
+        super(mplGraphic, self).__init__()
+        print('mpl cylinders')
+        self.h = h
+        hcyl = mplcyl.TruncatedCone()
+        #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
+        verts, edges = h.get_geometry()
+        # print 'verts', verts
+        # print 'edges', edges
+        # print verts['pos']
+        # self.hg = HocGraphic(h)
+        # self.hg.set_section_colors = self.set_section_colors
+        # super(HocCylinders, self).__init__()
+        meshes = []
+        sec_ids = []
+        self.surf = []
+        if useMpl and fax is None:
+            fig = mpl.figure()
+            ax = fig.gca(projection='3d')
+        else:
+            fig = fax[0]
+            ax = fax[1]
+        for edge in edges:
+            ends = verts['pos'][edge]  # xyz coordinate of one end [x,y,z]
+            dia = verts['dia'][edge]  # diameter at that end
+            sec_id = verts['sec_index'][edge[0]]  # save the section index
+
+            dif = ends[1]-ends[0]  # distance between the ends
+            length = (dif**2).sum() ** 0.5
+            C, T, B = hcyl.make_truncated_cone(p0=ends[0], p1=ends[1], R=[dia[0]/2., dia[1]/2.])
+            mesh_verts = np.array(C)
+            sec_id_array = np.empty(mesh_verts.shape[0]*3, dtype=int)
+            # # sec_id_array[:] = sec_id
+            # meshes.append(mesh_verts)
+            if useMpl:
+                s = ax.plot_surface(C[0], C[1], C[2], color='blue', linewidth=1, antialiased=False)
+                self.surf.append(s)
+                
+            sec_id_array[:] = sec_id
+            meshes.append(mesh_verts)
+            sec_ids.append(sec_id_array)
+
+        self.vertex_sec_ids = np.concatenate(sec_ids, axis=0)
+        mesh_verts = np.concatenate(meshes, axis=0)
+        if useMpl:
+            self.axisEqual3D(ax)
+            if fax is None:
+                mpl.show()
+        else:
+            s = mlab.mesh(meshes[0], meshes[1], meshes[2])
+            if fax is None:
+                mlab.show()
+        self.set_group_colors()# exit(1)
+
+    def axisEqual3D(self, ax):
+        extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
+        sz = extents[:,1] - extents[:,0]
+        centers = np.mean(extents, axis=1)
+        maxsize = max(abs(sz))
+        r = maxsize/2
+        ax.auto_scale_xyz(*np.column_stack((centers - r, centers + r)))
+
+
+    def set_section_colors(self, sec_colors):
+        print('SET SECTION COLORS')
+        colors = sec_colors[self.vertex_sec_ids]
+        for i, s in enumerate(self.surf):
+            s.set_facecolors(colors[i])
+        # (setVertexColors(colors, indexed='faces')
+        # self.meshDataChanged()
+
 
 class HocGrid(HocGraphic, gl.GLGridItem):
     """
     subclass of GLGridItem to draw a grid on the field
     """
-    def __init__(self, size=(40, 40, 40), spacing=(20, 20, 20)):
+    def __init__(self, size=(250, 250, 250), spacing=(50, 50, 50)):
         super(HocGraphic, self).__init__()
-        self.grid = gl.GLGridItem(color=pg.mkColor(128, 128, 128, 255))
-        return
+        # grcolor = pg.mkColor(255, 255, 255, 255)
+        grcolor = pg.mkColor('y')
+        self.grid = gl.GLGridItem(color=grcolor)
+        # return
+        size = np.array(size)
+        spacing = np.array(spacing)
         self.grid.setSize(x=size[0], y=size[1], z=size[2])  # 100 um grid spacing
         self.grid.setSpacing(x=spacing[0], y=spacing[1], z=spacing[2])  # 10 um steps
         self.grid.scale(1,1,1)  # uniform scale
-        self.grid.translate(100., 0., 0.)
-        super(HocGrid, self).__init__(size, spacing, color=pg.mkColor(128, 128, 128, 255))
+        # self.grid.translate(100., 0., 0.)
+        # super(HocGrid, self).__init__(size, spacing, color=grcolor)
 
 
 class HocGraph(HocGraphic, gl.GLLinePlotItem):
@@ -276,7 +666,6 @@ class HocSurface(HocGraphic, gl.GLMeshItem):
 
         self.meshDataChanged()
 
-
 class mayavi_graph(object):
     def __init__(self, h:object, color:Union[list, tuple, str]=(0,0,1), label=None, flags=None) -> object:
         self.h = h
@@ -337,166 +726,7 @@ class mayavi_graph(object):
             mlab.text3d(XC[0], YC[0], ZC[0], f"{label:s}", figure=None, scale=1.5, color=color)
         return t
 
-class mayavi_Cylinders(object):
-    def __init__(self, h, color=(0,0,1), label=None, flags=None):
-        self.h = h
-        hcyl = mplcyl.TruncatedCone()
-        #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
-        verts, edges = h.get_geometry()
-        # print ('edges', edges)
-        # print ('verts[pos]: ', verts['pos'])
-        # print ('verts', verts)
-        meshes = []
-        sec_ids = []
-        if isinstance(color, str):
-            if color in list(Colors.keys()):
-                color = tuple(Colors[color])[0:3]
-            else:
-                raise ValueError("Color string %s not in Colors table" % color)
-        XC = []
-        YC = []
-        ZC = []
-        S = []
-        connections = []
-        index = 0
-        lastend = None
-        ne = len(edges)
-        # print('# edges: ', ne)
-        ndone = 0
-        for ind, edge in enumerate(edges): # # of edges corresponds to N-1 section indiators; and to # of cones
-            ends = verts['pos'][edge]  # xyz coordinate of one end [x,y,z]
-            dia = verts['dia'][edge]  # diameter at that end
-            C, T, B = hcyl.make_truncated_cone(p0=ends[1], p1=ends[0], R=[dia[1]/2., dia[0]/2.])
 
-            XC.extend(C[0])
-            YC.extend(C[1])
-            ZC.extend(C[2])
-            XC.append(np.array([np.nan, np.nan]))  # disconnect adjacent cylinders to avoid "strings"
-            YC.append(np.array([np.nan, np.nan]))
-            ZC.append(np.array([np.nan, np.nan]))
-            # mlab.mesh(XC, YC, ZC, color=color, line_width=0.0) # mesh so far
-
-            N = len(C[0])
-            connections.append(np.vstack(
-                                   [np.arange(index,   index + N - 1.5),
-                                    np.arange(index + 1, index + N - 0.5)]
-                                        ).T)
-
-            index += N
-            # print('XC: ', len(XC), '\n', XC)
-        # XC = np.hstack(XC)
-        # YC = np.hstack(YC)
-        # ZC = np.hstack(ZC)
-        # S = np.hstack(S)
-
-        # connections = np.vstack(connections)
-        # # Create the points
-        # src = mlab.pipeline.scalar_scatter(XC, YC, ZC)
-        # src = mlab.pipeline.grid_source(XC, YC, ZC)
-        # src.parent.parent.filter.vary_radius = 'vary_radius_by_scalar'
-
-        # # Connect them
-        # src.mlab_source.dataset.lines = connections
-#         src.update()
-#         # #
-#         # # # The stripper filter cleans up connected lines
-#         lines = mlab.pipeline.stripper(src)
-## mesh = mlab.pipeline.delaunay3d(src)
-        # Finally, display the set of lines
-        # surface(lines... )
-        # t = mlab.pipeline.surface(src, color=color, line_width=.0, opacity=1)
-        m = mlab.mesh(XC, YC, ZC, color=color, line_width=0.0, opacity=1.0)
-        # self.cursor3d = mlab.points3d(0., 0., 0., mode='2darrow',
-        #                         color=(1, 1, 1), [-10, 10, -10, 10, -10, 10],
-        #                         scale_factor=0.5)
-        if flags is not None:
-            if 'norefaxes' not in flags:
-                refaxes()
-            if 'norefline' not in flags:
-                reflines()
-        else:
-            refaxes()
-            reflines()
-
-        if label is not None and 'text' in flags:
-            # print('cylinder: ', label, XC[0], YC[0], ZC[0])
-            mlab.text3d(XC[0][0]+5, YC[0][0], ZC[0][0], f"{label:s}", color=color, figure=None, scale=2.0)
-        self.g = m
-        #mlab.plot3d(XC, YC, ZC, color=color, tube_radius=0.5)
-       #  ext = 200.
-       #  x0 = [-ext, ext,     0.,    0.,    0.,   0.]
-       #  y0 = [   0.,   0.,  -ext,  ext,    0.,   0.]
-       #  z0 = [   0.,   0.,     0.,    0., -ext, ext]
-       #  colc = [(1,0,0), (0,1,0), (0,0,1)]
-       #  axisname = [f"x ({ext:.0f})", 'y', 'z']
-       #  for j, i in enumerate([0, 2, 4]):
-       #      mlab.plot3d(x0[i:i+2], y0[i:i+2], z0[i:i+2], color=colc[j], tube_radius=1.0)
-       #      mlab.text3d(x0[i], y0[i], z0[i], f"{axisname[j]:s}", scale=12.0)
-
-        # mlab.mesh(X, Y, Z)
-
-
-class mpl_Cylinders(object):
-    """
-    Input:
-        h: HocReader instance
-    """
-
-    def __init__(self, h, useMpl=True, fax=None):
-        self.h = h
-        hcyl = mplcyl.TruncatedCone()
-        #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
-        verts, edges = h.get_geometry()
-        # print 'verts', verts
-        # print 'edges', edges
-        # print verts['pos']
-        # self.hg = HocGraphic(h)
-        # self.hg.set_section_colors = self.set_section_colors
-        # super(HocCylinders, self).__init__()
-        meshes = []
-        sec_ids = []
-        if useMpl and fax is None:
-            fig = mpl.figure()
-            ax = fig.gca(projection='3d')
-        else:
-            fig = fax[0]
-            ax = fax[1]
-        for edge in edges:
-            ends = verts['pos'][edge]  # xyz coordinate of one end [x,y,z]
-            dia = verts['dia'][edge]  # diameter at that end
-            sec_id = verts['sec_index'][edge[0]]  # save the section index
-
-            dif = ends[1]-ends[0]  # distance between the ends
-            length = (dif**2).sum() ** 0.5
-            C, T, B = hcyl.make_truncated_cone(p0=ends[0], p1=ends[1], R=[dia[0]/2., dia[1]/2.])
-            mesh_verts = C
-#            print mesh_verts
-
-            # sec_id_array = np.empty(mesh_verts.shape[0]*3, dtype=int)
-            # # sec_id_array[:] = sec_id
-            # meshes.append(mesh_verts)
-            # sec_ids.append(sec_id_array)
-            meshes.append(mesh_verts)
-            if useMpl:
-                ax.plot_surface(C[0], C[1], C[2], color='blue', linewidth=1, antialiased=False)
-
-        if useMpl:
-            self.axisEqual3D(ax)
-            if fax is None:
-                mpl.show()
-        else:
-            s = mlab.mesh(meshes[0], meshes[1], meshes[2])
-            if fax is None:
-                mlab.show()
-        # exit(1)
-
-    def axisEqual3D(self, ax):
-        extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
-        sz = extents[:,1] - extents[:,0]
-        centers = np.mean(extents, axis=1)
-        maxsize = max(abs(sz))
-        r = maxsize/2
-        ax.auto_scale_xyz(*np.column_stack((centers - r, centers + r)))
 
 class mpl_Graph(object):
     """
@@ -652,102 +882,4 @@ class mpl_Graph(object):
 
 
 
-class HocCylinders(HocGraphic, gl.GLMeshItem):
-    """
-    Subclass of GLMeshItem that draws a cylinder representation of the geometry
-    specified by a HocReader.
 
-    Input:
-        h: HocReader instance
-    """
-    def __init__(self, h):
-        super(HocGraphic, self).__init__()
-        self.h = h
-        verts, edges = h.get_geometry()
-
-        meshes = []
-        sec_ids = []
-        for edge in edges:
-            ends = verts['pos'][edge]
-            dia = verts['dia'][edge]
-            sec_id = verts['sec_index'][edge[0]]
-
-            dif = ends[1]-ends[0]
-            length = (dif**2).sum() ** 0.5
-
-            mesh = gl.MeshData.cylinder(rows=1, cols=8, radius=[dia[0]/2., dia[1]/2.], length=length)
-            mesh_verts = mesh.vertexes(indexed='faces')
-
-            # Rotate cylinder vertexes to match segment
-            p1 = pg.Vector(*ends[0])
-            p2 = pg.Vector(*ends[1])
-            z = pg.Vector(0,0,1)
-            axis = pg.QtGui.QVector3D.crossProduct(z, p2-p1)
-            ang = z.angle(p2-p1)
-            tr = pg.Transform3D()
-            tr.translate(ends[0][0], ends[0][1], ends[0][2]) # move into position
-            tr.rotate(ang, axis.x(), axis.y(), axis.z())
-            mesh_verts = pg.transformCoordinates(tr, mesh_verts, transpose=True)
-            sec_id_array = np.empty(mesh_verts.shape[0]*3, dtype=int)
-            sec_id_array[:] = sec_id
-            meshes.append(mesh_verts)
-            sec_ids.append(sec_id_array)
-
-        self.vertex_sec_ids = np.concatenate(sec_ids, axis=0)
-        mesh_verts = np.concatenate(meshes, axis=0)
-
-        md = gl.MeshData(vertexes=mesh_verts)
-        gl.GLMeshItem.__init__(self, meshdata=md, shader='shaded')
-
-
-
-#         verts, edges = h.get_geometry()
-#         # self.hg = HocGraphic(h)
-#         # self.hg.set_section_colors = self.set_section_colors
-#         # super(HocCylinders, self).__init__()
-#         meshes = []
-#         sec_ids = []
-#         for edge in edges:
-#             ends = verts['pos'][edge]
-#             dia = verts['dia'][edge]
-#             sec_id = verts['sec_index'][edge[0]]
-#
-#             dif = ends[1]-ends[0]
-#             length = (dif**2).sum() ** 0.5
-#
-#             mesh = gl.MeshData.cylinder(rows=1, cols=8, radius=[dia[0]/2., dia[1]/2.], length=length)
-#             mesh_verts = mesh.vertexes(indexed='faces')
-#
-#             # Rotate cylinder vertexes to match segment
-#             p1 = pg.Vector(*ends[0])
-#             p2 = pg.Vector(*ends[1])
-#             z = pg.Vector(0,0,1)
-#             axis = pg.QtGui.QVector3D.crossProduct(z, p2-p1)
-#             ang = z.angle(p2-p1)
-#             tr = pg.Transform3D()
-#             tr.translate(ends[0][0], ends[0][1], ends[0][2]) # move into position
-#             tr.rotate(ang, axis.x(), axis.y(), axis.z())
-#
-#             mesh_verts = pg.transformCoordinates(tr, mesh_verts, transpose=True)
-# #            print ('meshverts: ', mesh_verts.shape)
-#             sec_id_array = np.empty(mesh_verts.shape[0]*3, dtype=int)
-#             sec_id_array[:] = sec_id
-#             meshes.append(mesh_verts)
-#             sec_ids.append(sec_id_array)
-#         #print mesh_verts
-#         X = mesh_verts
-#
-#         print('edges done')
-#         self.vertex_sec_ids = np.concatenate(sec_ids, axis=0)
-#         mesh_verts = np.concatenate(meshes, axis=0)
-#         print mesh_verts
-#         md = gl.MeshData(vertexes=mesh_verts)
-#         gl.GLMeshItem(meshdata=md, shader='shaded')
-#
-#         #super(HocCylinders, self).__init__()
-#         self.setMeshData(meshdata=md, shader='shaded')
-
-    def set_section_colors(self, sec_colors):
-        colors = sec_colors[self.vertex_sec_ids]
-        self.opts['meshdata'].setVertexColors(colors, indexed='faces')
-        self.meshDataChanged()

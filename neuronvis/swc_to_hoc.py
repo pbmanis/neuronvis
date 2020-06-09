@@ -11,9 +11,12 @@ import re
 SWC File format from CNIC:
 
 n T x y z R P
-n is an integer label that identifies the current point and increments by one from one line to the next.
+n is an integer label that identifies the current point 
+and increments by one from one line to the next.
 
-T is an integer representing the type of neuronal segment, such as soma, axon, apical dendrite, etc. The standard accepted integer values are given below.
+T is an integer representing the type of neuronal segment, 
+such as soma, axon, apical dendrite, etc. The standard 
+accepted integer values are given below.
 
 0 = undefined
 1 = soma
@@ -27,10 +30,12 @@ x, y, z gives the cartesian coordinates of each node.
 
 R is the radius at that node.
 
-P indicates the parent (the integer label) of the current point or -1 to indicate an origin (soma).
+P indicates the parent (the integer label) of the current
+ point or -1 to indicate an origin (soma).
 
 Python 3 version only 3-27-2019 pbm
-Handles Singleton "sections" in swc file by inserting the last parent segment information.
+Handles Singleton "sections" in swc file by inserting 
+the last parent segment information.
 
 """
 
@@ -95,6 +100,35 @@ renaming = {
     "Axon_Node": "node",
 }
 
+# when pruning, we remove any section type that is a 
+# part of either dendrite or axon.
+idsofpart = {
+    'dendrite': [3, 4, 12, 13, 14, 18],
+    'axon': [2, 10, 11, 15, 16, 17]
+}
+
+partsof = {
+    "dendrite": ["dendrite",
+                "basal_dendrite"
+                "Basal_Dendrite",
+                "Apical_Dendrite", 
+                "apical_dendrite", 
+                "proximal_dendrite",
+                "Proximal_Dendrite"
+                "distal_dendrite",
+                "Distal_Dendrite",
+                "Dendritic_Swelling",
+                "hub",
+                "Dendritic_Hub"],
+    "axon": ["Axon_Hillock", 
+            "hillock",
+            "Unmyelinated_Axon",
+            "unmyelinatedaxon",
+            "Axon_Initial_Segment",
+            "initialsegment",
+            "Axon_Heminode", "heminode",
+            "Axon_Node", "node",]
+}
 
 class SWC(object):
     """
@@ -125,6 +159,7 @@ class SWC(object):
         secmap: str = "swc",
         data: Union[np.ndarray, None] = None,
         scales: Union[dict, None] = None,
+        args: object = None
     ) -> None:
         self._dtype = [
             ("id", int),
@@ -140,7 +175,13 @@ class SWC(object):
         self._sections = None
         self._children = None
         self.scales = scales
-
+        self.pruneaxon = False
+        self.prunedendrite = False
+        self.topology = False        
+        if args is not None:
+            self.pruneaxon = args.pruneaxon
+            self.prunedendrite = args.prunedendrite
+            self.topology = args.topology
         if secmap == "swc":
             self.sectypes = swc_sectypes
         elif secmap == "sbem":
@@ -177,18 +218,28 @@ class SWC(object):
     def copy(self) -> object:
         return SWC(data=self.data.copy(), types=self.sectypes)
 
-    @property
-    def lookup(self) -> dict:
+    def sort(self) -> None:
         """
-        Return a dict that maps *id* to *index* in the data array.
+        Sort the tree in topological order.
+        This is the first stop
         """
-        if self._id_lookup is None:
-            self._id_lookup = dict([(rec["id"], i) for i, rec in enumerate(self.data)])
-            # self._id_lookup = {}
-            # for i, rec in enumerate(self.data):
-            # self._id_lookup[rec['id']] = i
-        return self._id_lookup
 
+        order = self.branch(self.root)
+        lt = self.lookup
+        indexes = np.array([lt[i] for i in order], dtype=int)
+        self.data = self.data[indexes]
+        self._id_lookup = None
+        self._sections = None
+
+    def branch(self, id: int) -> list:
+        """
+        Return a list of IDs in the branch beginning at *id*.
+        """
+        branch = [id]
+        for ch in self.children(id):
+            branch.extend(self.branch(ch))
+        return branch
+    
     def children(self, ident: int) -> list:
         """
         Return a list of all children of the node *id*.
@@ -200,6 +251,18 @@ class SWC(object):
                 self._children[rec["parent"]].append(rec["id"])
         # print('children: ', self._children)
         return self._children.get(ident, [])
+
+    @property
+    def lookup(self) -> dict:
+        """
+        Return a dict that maps *id* to *index* in the data array.
+        """
+        if self._id_lookup is None:
+            self._id_lookup = dict([(rec["id"], i) for i, rec in enumerate(self.data)])
+            # self._id_lookup = {}
+            # for i, rec in enumerate(self.data):
+            # self._id_lookup[rec['id']] = i
+        return self._id_lookup
 
     def __getitem__(self, ident: int) -> int:
         """
@@ -223,7 +286,6 @@ class SWC(object):
             self[id]["parent"] = parent
             parent = id
             id = oldparent
-
         self._children = None
         self.sort()
 
@@ -254,6 +316,10 @@ class SWC(object):
             # build lists of unbranched node chains
             lasttype = self.data["type"][0]
             for r in self.data:
+                if self.prunedendrite and r["type"] in idsofpart['dendrite']:
+                        continue
+                if self.pruneaxon and r["type"] in idsofpart['axon']:
+                        continue
                 sec.append(r["id"])
                 if (
                     r["id"] in branchpts
@@ -292,6 +358,9 @@ class SWC(object):
         Write data to a HOC file.
         Each node type is written to a separate section list.
         """
+        if self.topology:
+            print("Showing topology: no file will be written")
+            return
         hoc = []
         # Add some header information
         hoc.extend([f"// Translated from SWC format by: swc_to_hoc.py"])
@@ -387,17 +456,6 @@ class SWC(object):
         ind = np.argwhere(self.data["parent"] == -1)[0, 0]
         return self.data[ind]["id"]
 
-    def sort(self) -> None:
-        """
-        Sort the tree in topological order.
-        """
-        order = self.branch(self.root)
-        lt = self.lookup
-        indexes = np.array([lt[i] for i in order], dtype=int)
-        self.data = self.data[indexes]
-
-        self._id_lookup = None
-        self._sections = None
 
     def path(self, node) -> list:
         path = [node]
@@ -418,21 +476,24 @@ class SWC(object):
         self.data["y"] += y
         self.data["z"] += z
 
-    def branch(self, id: int) -> list:
-        """
-        Return a list of IDs in the branch beginning at *id*.
-        """
-        branch = [id]
-        for ch in self.children(id):
-            branch.extend(self.branch(ch))
-        return branch
+    def shorten_secname(self, sec):
+        if len(sec) > 10:
+            secstr = "%s,...%s" % (
+                str(tuple(sec[:3]))[:-1],
+                str(tuple(sec[-3:]))[1:],
+            )
+        else:
+            secstr = str(tuple(sec))
 
-    def topology(self) -> None:
+    def show_topology(self) -> None:
         """
         Print the tree topology.
         """
+        if not self.topology:
+            return
         path = []
         indent = ""
+        this_indent = ""
         secparents = [self[s[0]]["parent"] for s in self.sections]
         for i, sec in enumerate(self.sections):
             p = secparents[i]
@@ -451,13 +512,8 @@ class SWC(object):
                 indent = indent[:-2] + "   │  "
 
             typ = self.sectypes[self[sec[0]]["type"]]
-            if len(sec) > 10:
-                secstr = "%s,...%s" % (
-                    str(tuple(sec[:3]))[:-1],
-                    str(tuple(sec[-3:]))[1:],
-                )
-            else:
-                secstr = str(tuple(sec))
+            secstr = self.shorten_secname(sec)
+
             print(
                 "%ssections[%d] type=%s parent=%d %s" % (this_indent, i, typ, p, secstr)
             )
@@ -573,7 +629,32 @@ def main() -> None:
         choices=["swc", "sbem"],
         help="Choose section ampping",
     )
-
+    
+    parser.add_argument(
+        "-t",
+        "--topology",
+        action="store_true",
+        dest="topology",
+        default=False,
+        help="Show topology (blocks output writing)",
+    )
+    
+    parser.add_argument(
+        "--prunedendrite",
+        action="store_true",
+        dest="prunedendrite",
+        default=False,
+        help="Prune all dendrite sections from the hoc output",
+    )
+    
+    parser.add_argument(
+        "--pruneaxon",
+        action="store_true",
+        dest="pruneaxon",
+        default=False,
+        help="Prune all axon sections from the hoc output",
+    )
+    
     parser.add_argument(
         "-R",
         action="store_true",
@@ -594,13 +675,14 @@ def main() -> None:
 
     noseparatescale = True
     if fn.is_file():
-        s = SWC(filename=fn, secmap=args.secmap, scales=scales)
-        # s.topology()
+        s = SWC(filename=fn, secmap=args.secmap, scales=scales, args=args)
+        fname = args.filename
+        s.show_topology()
         if noseparatescale or not (args.somascale or args.dendscale):
-            s.write_hoc(Path(args.filename).with_suffix(".hocx"))
+            s.write_hoc(Path(fname).with_suffix(".hocx"))
         else:
             ffn = Path(
-                args.filename.stem,
+                fname.stem,
                 '_s_{.3f:args.somascale}_d_{.3f:args.dendscale}').with_suffix(".hocx")
             s.write_hoc(ffn)
     else:

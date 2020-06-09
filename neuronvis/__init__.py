@@ -3,7 +3,7 @@
 version_info = (0, 2, 2, 'a')
 __version__ = "%d.%d.%d%s" % version_info
 
-
+import neuronvis.hocRender
 import neuronvis.hoc_reader
 import neuronvis.hoc_viewer
 import neuronvis.hoc_graphics

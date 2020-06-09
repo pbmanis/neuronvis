@@ -7,7 +7,69 @@ from .hoc_reader import HocReader
 from .hoc_graphics import *
 from pyqtgraph.Qt import QtGui
 from mayavi import mlab
+from OpenGL.GL import *
+from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
+
+class GLAxisItem_r(GLGraphicsItem):
+    """
+    **Bases:** :class:`GLGraphicsItem <pyqtgraph.opengl.GLGraphicsItem>`
+    
+    Displays three lines indicating origin and orientation of local coordinate system. 
+    
+    """
+    
+    def __init__(self, size=None, antialias=True, glOptions='translucent'):
+        GLGraphicsItem.__init__(self)
+        if size is None:
+            size = QtGui.QVector3D(1,1,1)
+        self.antialias = antialias
+        self.setSize(size=size)
+        self.setGLOptions(glOptions)
+    
+    def setSize(self, x=None, y=None, z=None, size=None):
+        """
+        Set the size of the axes (in its local coordinate system; this does not affect the transform)
+        Arguments can be x,y,z or size=QVector3D().
+        """
+        if size is not None:
+            x = size.x()
+            y = size.y()
+            z = size.z()
+        self.__size = [x,y,z]
+        self.update()
+        
+    def size(self):
+        return self.__size[:]
+    
+    
+    def paint(self):
+
+        #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+        #glEnable( GL_BLEND )
+        #glEnable( GL_ALPHA_TEST )
+        self.setupGLState()
+        
+        if self.antialias:
+            glEnable(GL_LINE_SMOOTH)
+            glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+            
+        glBegin( GL_LINES )
+        
+        x,y,z = self.size()
+        glColor4f(1, 1, 1, .9)  # z is green
+        glVertex3f(0, 0, 0)
+        glVertex3f(0, 0, z)
+
+        glColor4f(1, 1, 1, .9)  # y is yellow
+        glVertex3f(0, 0, 0)
+        glVertex3f(0, y, 0)
+
+        glColor4f(1, 1, 1, .9)  # x is blue
+        glVertex3f(0, 0, 0)
+        glVertex3f(x, 0, 0)
+        glEnd()
+        
 class HocViewer(gl.GLViewWidget):
     """
     Subclass of GLViewWidget that displays data from HocReader.
@@ -16,7 +78,7 @@ class HocViewer(gl.GLViewWidget):
     Input:
         h: HocReader instance or "xxxx.hoc" file name
     """
-    def __init__(self, hoc, camerapos=[200., 45., 45.], renderer='pyqtgraph', fighandle=None, flags=None):
+    def __init__(self, hoc, camerapos=[200., 0., 0.], renderer='pyqtgraph', fighandle=None, flags=None):
         if not isinstance(hoc, HocReader):
             hoc = HocReader(hoc)
         self.hr = hoc
@@ -27,27 +89,41 @@ class HocViewer(gl.GLViewWidget):
             pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
             super(HocViewer, self).__init__()
             self.resize(720,720)
+
             # self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
-            # self.setBackgroundColor(pg.glColor(pg.mkColor(0, 0, 0, 0)))
-            # color='w'
-            # self.setBackgroundColor(color)
+            # self.setBackgroundColor(pg.glColor(pg.mkColor(0.1, 0.1, 0.1, 1)))
+            color='w'
+            self.setBackgroundColor(0.4)
             self.show()
             self.setWindowTitle('hocViewer')
             self.setCameraPosition(distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2])
         elif renderer == 'mayavi' and fighandle == None:
             fighandle = mlab.figure(figure=None, bgcolor=(0,0,0), fgcolor=None, size=(600, 600))
-        else:
+
             super(HocViewer, self).__init__()
 
-        #self.grid = self.draw_grid()
+        ####
+        # original grid code
+        self.g = gl.GLGridItem()
+        self.g.scale(10,10,10)
+        self.g.setColor(pg.mkColor('w'))
+        # self.addItem(self.g)
+        self.ax = GLAxisItem_r()
+        self.addItem(self.ax)
+        self.ax.setSize(50, 50, 50)
+        # print(dir(self.ax))
+        # print(self.ax.childItems())
+
+        # self.grid = self.draw_grid()
+        # self.resetGrid()
         # self.grid = HocGrid()
         # self.graphics.append(self.grid)
-        # # gl.GLGridItem(color=pg.mkColor(128, 128, 128))
-        # #
-        # # self.grid.setSize(x=40., y=40., z=40.)  # 100 um grid spacing
-        # # self.grid.setSpacing(x=20., y=20., z=20.)  # 10 um steps
-        # # self.grid.scale(1,1,1)  # uniform scale
-        # # self.grid.translate(100., 0., 0.)
+        # gl.GLGridItem(color=pg.mkColor(128, 128, 128))
+
+        # self.grid.setSize(x=40., y=40., z=40.)  # 100 um grid spacing
+        # self.grid.setSpacing(x=20., y=20., z=20.)  # 10 um steps
+        # self.grid.scale(1,1,1)  # uniform scale
+        # self.grid.translate(0., 0., 0.)
         # self.addItem(self.grid)
 
     def setBackcolor(self, color):
