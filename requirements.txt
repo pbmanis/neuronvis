@@ -1,0 +1,32 @@
+brotli==1.0.7
+cryptography==2.9.2
+cv==1.0.0
+Cython==0.29.19
+importlib_metadata==1.6.0
+ipaddr==2.2.0
+keyring==21.2.1
+lmfit==0.9.13
+lockfile==0.12.2
+lxml==4.5.1
+matplotlib==3.2.1
+mayavi==4.7.1
+mock==4.0.2
+mypy_extensions==0.4.3
+neuron==7.8.0.127
+numpy==1.18.4
+ordereddict==1.1
+protobuf==3.12.1
+
+pyOpenSSL==19.1.0
+PyQt5==5.14.1
+PyQt5-sip==12.7.1
+# required for 3d display in pyqtgraph
+PyOpenGL==3.1.5
+pyqtgraph==0.10.0
+scipy==1.4.1
+simplejson==3.17.0
+# required for mayavi in neuronvis
+vtk==8.1.2
+wincertstore==0.2
+zipp==3.1.0
+-e git+https://github.com/pbmanis/pylibrary.git@f16bcbe490e8a11d99792dfd65d3ed18a0cd6756#egg=pylibrary
