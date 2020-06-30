@@ -81,10 +81,12 @@ class HocReader(object):
 
         # Add groupings by section list if possible:
         if len(sec_lists) > 1:
+            print('Grouping by list')
             self.add_groups_by_section_list(sec_lists)
 
         # Otherwise, try section prefixes
         elif len(sec_prefixes) > 1:
+            print('grouping by prefixes')
             for group, sections in sec_prefixes.items():
                 self.add_section_group(group, sections)
 
@@ -125,6 +127,29 @@ class HocReader(object):
             prefixes.setdefault(prefix, []).append(sec_name)
         return prefixes
 
+    def retrieve_section_group(self) -> dict:
+        """
+        Go through all the sections and generate a dictionary the section
+        mapping to its sectin type (or "group")
+        For example, with sections names axon[0], axon[1], ais[0], and soma[0],
+        we would generate the following structure:
+
+            {'section[0]': 'axon',
+             'section[1]':  'ais',
+             'section[2]': 'soma'}
+        """
+        secprefixes = {}
+        regex = re.compile("(?P<prefix>\w+)\[(\d*)\]")
+
+        for sec_name in self.sections:
+            secprefixes[sec_name] = None
+            for key, value in self.sec_groups.items():
+                for v in value:
+                    if v == sec_name:
+                        secprefixes[sec_name] = key
+        return secprefixes
+        
+
     def get_mechanisms(self, section: object) -> dict:
         """
         Get a set of all of the mechanisms inserted into a given section
@@ -134,7 +159,7 @@ class HocReader(object):
         """
         return self.mechanisms[section]
 
-    def get_density(self, section: object, mechanism: list) -> float:
+    def get_density(self, section: object, mechanism: str, value: str='gbar') -> float:
         """
         Get density mechanism that may be found the section.
         mechanism is a list ['name', 'gbarname']. This is needed because
@@ -150,20 +175,19 @@ class HocReader(object):
             None
         """
 
+        info = self.get_sec_info(section)
         gmech = []
         for seg in section:
-            try:
-                x = getattr(seg, mechanism[0])
-                mecbar = "%s_%s" % (mechanism[1], mechanism[0])
-                if mecbar in dir(x):
-                    gmech.append(getattr(x, mechanism[1]))
-                else:
-                    print("hoc_reader:get_density did not find the mechanism in dir x")
-            except NameError:
-                return 0.0
-            except:
-                print("hoc_reader:get_density failed to evaluate the mechanisms... ")
-                raise
+            # # print('mechanism: ', mechanism)
+            # print('seg: ', seg, '\n    dir: ', dir(seg))
+            if mechanism in dir(seg):
+                x = getattr(seg, mechanism)
+                # print('x: ', x, dir(x))
+                mecbar = getattr(x, value)
+                gmech.append(mecbar)
+            else:
+                # raise()
+                gmech.append(0.0) # does not exist or is zero
 
         #        print gmech
         if len(gmech) == 0:
@@ -185,8 +209,7 @@ class HocReader(object):
         for seg in section:
             for mech in seg:
                 mechs.append(mech.name())
-        mechs = set(mechs)  # Excluding the repeating ones
-
+        self.mechs = set(mechs)  # Excluding the repeating ones
         mech_info = "<b>Mechanisms in the section</b><ul>"
         for mech_name in mechs:
             s = "<li> %s </li>" % mech_name
@@ -266,6 +289,7 @@ class HocReader(object):
             sections: list of section names or hoc Section objects.
 
         """
+        # print("add section group: ", name, self.sec_groups)
         if name in self.sec_groups and not overwrite:
             raise Exception(
                 "Group name %s is already used (use overwrite=True)." % name
@@ -279,12 +303,16 @@ class HocReader(object):
                 sec = sec.name()
             group.add(sec)
         self.sec_groups[name] = group
-
+        # print('for name, have: ', name, self.sec_groups[name])
+        
     def get_section_group(self, name: str) -> list:
         """
         Return the set of section names in the group *name*.
         """
-        return self.sec_groups[name]
+        if name in list(self.sec_groups.keys()):
+            return self.sec_groups[name]
+        else:
+            return None
 
     def get_section_lists(self) -> list:
         """
@@ -334,25 +362,32 @@ class HocReader(object):
         self.h.define_shape()
 
         # map segments (lines) to the section that contains them
-        self.segment_to_section = {}
+        # self.segment_to_section = {}
 
         vertexes = []
         connections = []
+        groupmap = self.retrieve_section_group()
 
-        for secid, sec in enumerate(self.sections.values()):
-            x_sec, y_sec, z_sec, d_sec = self.retrieve_coordinate(sec)
+        secid = 0
+        for sec in self.sections:
 
+            secv = self.sections[sec]
+            x_sec, y_sec, z_sec, d_sec = self.retrieve_coordinate(secv)
+            sectype = groupmap[sec]
+            # print(sectype)
             for i, xi in enumerate(x_sec):
-                vertexes.append(((x_sec[i], y_sec[i], z_sec[i]), d_sec[i], secid))
+                vertexes.append(((x_sec[i], y_sec[i], z_sec[i]), d_sec[i], secid, str(sectype)))
                 indx_geom_seg = len(vertexes) - 1
                 if len(vertexes) > 1 and i > 0:
                     connections.append([indx_geom_seg, indx_geom_seg - 1])
-
+            secid += 1
         self.edges = np.array(connections)
         self.vertexes = np.empty(
-            len(vertexes), dtype=[("pos", float, 3), ("dia", float), ("sec_index", int)]
+            len(vertexes), dtype=[("pos", float, 3), ("dia", float), ("sec_index", int), ("sec_type", object)]
         )
         self.vertexes[:] = vertexes
+        # print(self.vertexes)
+       #  exit()
         return self.vertexes, self.edges
 
     def retrieve_coordinate(self, sec: object) -> tuple:

@@ -4,10 +4,13 @@ import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
 from .hoc_reader import HocReader
-from .hoc_graphics import *
+from .hoc_graphics import HocGrid, HocCylinders, HocSurface, HocGraph, HocVolume
+from .hoc_graphics import mayavi_Cylinders
+from .hoc_graphics import mpl_Cylinders
 from pyqtgraph.Qt import QtGui
+import matplotlib.pyplot as mpl
 from mayavi import mlab
-from OpenGL.GL import *
+import OpenGL.GL as OGL
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
 
@@ -51,24 +54,24 @@ class GLAxisItem_r(GLGraphicsItem):
         self.setupGLState()
         
         if self.antialias:
-            glEnable(GL_LINE_SMOOTH)
-            glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
+            OGL.glEnable(OGL.GL_LINE_SMOOTH)
+            OGL.glHint(OGL.GL_LINE_SMOOTH_HINT, OGL.GL_NICEST)
             
-        glBegin( GL_LINES )
+        OGL.glBegin( OGL.GL_LINES )
         
         x,y,z = self.size()
-        glColor4f(1, 1, 1, .9)  # z is green
-        glVertex3f(0, 0, 0)
-        glVertex3f(0, 0, z)
+        OGL.glColor4f(1, 1, 1, .9)  # z is green
+        OGL.glVertex3f(0, 0, 0)
+        OGL.glVertex3f(0, 0, z)
 
-        glColor4f(1, 1, 1, .9)  # y is yellow
-        glVertex3f(0, 0, 0)
-        glVertex3f(0, y, 0)
+        OGL.glColor4f(1, 1, 1, .9)  # y is yellow
+        OGL.glVertex3f(0, 0, 0)
+        OGL.glVertex3f(0, y, 0)
 
-        glColor4f(1, 1, 1, .9)  # x is blue
-        glVertex3f(0, 0, 0)
-        glVertex3f(x, 0, 0)
-        glEnd()
+        OGL.glColor4f(1, 1, 1, .9)  # x is blue
+        OGL.glVertex3f(0, 0, 0)
+        OGL.glVertex3f(x, 0, 0)
+        OGL.glEnd()
         
 class HocViewer(gl.GLViewWidget):
     """
@@ -78,17 +81,19 @@ class HocViewer(gl.GLViewWidget):
     Input:
         h: HocReader instance or "xxxx.hoc" file name
     """
-    def __init__(self, hoc, camerapos=[200., 0., 0.], renderer='pyqtgraph', fighandle=None, flags=None):
+    def __init__(self, hoc, camerapos=[200., 0., 0.], renderer='pyqtgraph', fighandle=None, 
+                figsize=[720, 720], flags=None):
         if not isinstance(hoc, HocReader):
             hoc = HocReader(hoc)
         self.hr = hoc
         self.graphics = []
         self.flags = flags
+        self.camerapos = camerapos
         self.video_file = None
         if renderer == 'pyqtgraph' and fighandle == None:
             pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
             super(HocViewer, self).__init__()
-            self.resize(720,720)
+            self.resize(figsize[0], figsize[1])
 
             # self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
             # self.setBackgroundColor(pg.glColor(pg.mkColor(0.1, 0.1, 0.1, 1)))
@@ -98,10 +103,11 @@ class HocViewer(gl.GLViewWidget):
             self.setWindowTitle('hocViewer')
             self.setCameraPosition(distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2])
         elif renderer == 'mayavi' and fighandle == None:
-            fighandle = mlab.figure(figure=None, bgcolor=(0,0,0), fgcolor=None, size=(600, 600))
-
+            fighandle = mlab.figure(figure=None, bgcolor=(0.6,0.6,0.6), fgcolor=None, size=(figsize[0], figsize[1]))
             super(HocViewer, self).__init__()
 
+        elif renderer == 'mpl' and fighandle == None:
+            super(HocViewer, self).__init__()
         ####
         # original grid code
         self.g = gl.GLGridItem()
@@ -111,6 +117,9 @@ class HocViewer(gl.GLViewWidget):
         self.ax = GLAxisItem_r()
         self.addItem(self.ax)
         self.ax.setSize(50, 50, 50)
+        # print(dir(self))
+        # self.mouseReleaseEvent(self.mouse_released2)
+        # print(self.signalsBlocked())
         # print(dir(self.ax))
         # print(self.ax.childItems())
 
@@ -126,11 +135,17 @@ class HocViewer(gl.GLViewWidget):
         # self.grid.translate(0., 0., 0.)
         # self.addItem(self.grid)
 
+    def mouse_released(self, event):
+        print('released, event = ', event)
+
+        
     def setBackcolor(self, color):
         self.setBackgroundColor(color)
 
     def setCamera(self, distance=200., elevation=45., azimuth=45.):
-        self.setCarenmeraPosition(distance=distance, elevation=elevation, azimuth=azimuth)
+        self.camerapos = [distance, elevantion, azimuth]
+        # for opengl:
+        self.setCameraPosition(distance=distance, elevation=elevation, azimuth=azimuth)
 
     def draw_grid(self):
         g = HocGrid()
@@ -210,15 +225,16 @@ class HocViewer(gl.GLViewWidget):
         self.addItem(g)
         return g
 
-    def draw_mayavi_cylinders(self, color=(0,0,1), label=None, flags=None):
-        MC = mayavi_Cylinders(self.hr, color=color, label=label, flags=flags)
-        return(MC.g)
+    def draw_mayavi_cylinders(self, color=(0,0,1), label=None, flags=None, mechanism=None):
+        MC = mayavi_Cylinders(self.hr, color=color, label=label, flags=flags, mechanism=mechanism, 
+        camerapos=self.camerapos)
+        return(MC)
 
     def draw_mayavi_graph(self, color=None, label=None, flags=None) -> object:
         MG = mayavi_graph(self.hr, color=color, label=label, flags=flags)
-        return(MG.g)
+        return(MG)
 
-    def draw_mpl(self, fax=None):
+    def draw_mpl_cylinders(self, fax=None):
         """
         fax is figure and axes: [fig, ax] from 3d plot definition
         """

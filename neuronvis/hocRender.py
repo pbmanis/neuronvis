@@ -24,8 +24,11 @@ the hoc file connection structure (specifically: getSectionInfo, and parts of dr
 """
 
 import os, sys, pickle
+from pathlib import Path
 import argparse
-from typing import Union
+from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Union, Dict, List
 
 os.environ["PYQTGRAPH_QT_LIB"] = "PyQt5"
 import pyqtgraph as pg
@@ -54,7 +57,7 @@ display_style = {
     "surface": "uncolored surface rendering.",
 }
 
-display_renderer = {
+display_renderers = {
     "pyqtgraph": "render with pyqtgraph",
     "mpl": "render using matplotlib ",
     "mayavi": "Render with mayavi",
@@ -66,6 +69,7 @@ display_renderer = {
 ##########################################################
 # colors are from XKCD color list. Sorry folks.
 #
+
 section_colors = {
     "axon": "green",  # in this dict, we handle multiple labels for the same structure.
     "Axon_Initial_Segment": "cyan",
@@ -105,20 +109,22 @@ section_colors = {
 class Render(object):
     def __init__(
         self,
-        display_style="cylinders",
-        display_renderer="pyqtgraph",
-        display_mode="sec-type",
-        mechanism=None,
-        fighandle=None,
-        hoc_file=None,
-        sim_data=None,
-        output_file=None,
-        fax=None,
-        somaonly=False,
-        color="blue",
-        alpha=1.0,
-        label=None,
-        flags=None,
+        hoc_file:Union[Path, str, None]=None,
+        display_style:str="cylinders",
+        display_renderer:str="pyqtgraph",
+        display_mode:str="sec-type",
+        mechanism:Union[str, None]=None,
+        fighandle:Union[object, None]=None,
+        sim_data:Union[Path, str, None]=None,
+        initial_view:list=[200., 0., 0.],
+        figsize:list=[1000., 1000.],
+        output_file:Union[Path, str, None]=None,
+        fax:Union[object, None]=None,  # matplotlib figure axis
+        somaonly:bool=False,
+        color:str="blue",
+        alpha:float=1.0,
+        label:Union[str, None]=None,
+        flags=None,  # passed to mayavi, probably str, list or object. 
     ) -> None:
 
 
@@ -137,15 +143,21 @@ class Render(object):
         self.color = color
         hoc = HocReader(hoc_file, somaonly=somaonly)
         self.renderer = display_renderer
-        self.view = HocViewer(hoc, renderer=display_renderer, fighandle=fighandle)
+        self.display_style = display_style
+        self.display_mode = display_mode
+        self.view = HocViewer(hoc, 
+                        camerapos=initial_view,
+                        renderer=self.renderer,
+                        figsize=figsize,
+                        fighandle=fighandle)
         self.label = label
         self.alpha = alpha
         # print("Section groups:")
         # print(self.view.hr.sec_groups.keys())
         if display_style == "volume":
-            if display_renderer== "pyqtgraph":
+            if self.renderer == "pyqtgraph":
                 g = self.view.draw_volume()
-            elif display_renderer== "mayavi":
+            elif self.renderer == "mayavi":
                 g = self.view.draw_volume_mayavi()
             else:
                 raise ValueError("Can only render volume with pyqtgraph and mayavi")
@@ -155,14 +167,14 @@ class Render(object):
             self.color_map(g, display_mode, colors=section_colors, mechanism=mechanism, alpha=self.alpha)
 
         elif display_style == "graph":
-            if display_renderer== "pyqtgraph":
+            if self.renderer == "pyqtgraph":
                 g = self.view.draw_graph()
                 self.color_map(
                     g, display, mechanism=mechanism, alpha = self.alpha,
                 )
-            elif display_renderer== "mpl":
+            elif   self.renderer== "mpl":
                 g = self.view.draw_mpl_graph(fax=fax)
-            elif display_renderer== "mayavi":
+            elif   self.renderer== "mayavi":
                 g = self.view.draw_mayavi_graph(
                     color=self.color, label=label, flags=flags
                 )
@@ -170,23 +182,26 @@ class Render(object):
                 raise ValueError("Can only render graph in pyqtgraph, matplotlib and mayavi ")
 
         elif display_style == "cylinders":
-            if display_renderer== "pyqtgraph":
+            if   self.renderer== "pyqtgraph":
                 g = self.view.draw_cylinders()
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
-            elif display_renderer=="mpl":
-                g = self.view.draw_mpl(fax=fax)
+
+            elif   self.renderer=="mpl":
+                g = self.view.draw_mpl_cylinders(fax=fax)
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
-            elif display_renderer== "mayavi":
+            
+            elif   self.renderer== "mayavi":
                 g = self.view.draw_mayavi_cylinders(
-                    color=self.color, label=label, flags=flags
+                    color=section_colors, label=label, flags=flags,
+                    mechanism=mechanism,
                 )
-                print("g: ", g)
-                self.color_map(g, display, mechanism=mechanism, alpha=self.alpha)
-                g.render()
+                # print("g: ", g)
+                self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+                g.g.render()
             else:
                 raise ValueError("Can only render cylinders in pyqtgraph, matplotlib and mayavi ")
 
-        elif display_renderer == "vispy":
+        elif   self.renderer == "vispy":
             g = self.view.draw_vispy()
 
         elif display_mode == "vm":
@@ -202,22 +217,30 @@ class Render(object):
             loopCount = 0
             nloop = 1
 
-        if display_renderer== "pyqtgraph":
-            print('pyqtgraph')
+        if   self.renderer== "pyqtgraph":
+
             import pyqtgraph as pg
             if output_file is not None:
                 print(f"Saving to outputfile: {str(output_file):s}")
                 # print(dir(self.view))
-                img = pg.makeQImage(self.view.renderToArray((1000, 1000)))
+                img = pg.makeQImage(self.view.renderToArray(size=figsize))
                 img.save(output_file)
             elif sys.flags.interactive == 0:
                 pg.Qt.QtGui.QApplication.exec_()
                 
-        if display_renderer== "mayavi":
-            mlab.show()
-        if display_renderer== "mpl":
-            import matplotlib.pyplot as mpl
+        if self.renderer== "mayavi":
 
+            print('outputfile: ', output_file)
+            if output_file is not None:
+                print(f"Saving mayvi rendering to outputfile: {str(output_file):s}")
+                # print(dir(self.view))
+                f = mlab.gcf()
+                mlab.savefig(output_file, figure=f, magnification=1.0) # size=(1000, 1000))
+            else:
+                mlab.show()
+                            
+        if self.renderer== "mpl":
+            import matplotlib.pyplot as mpl
             mpl.show()
 
     def color_map(
@@ -228,16 +251,23 @@ class Render(object):
         colors:dict=section_colors,
         alpha: float = 1.0,
     ) -> None:
+        print('set color map')
         assert g is not None
+
         if display_mode == "sec-type":
-            print('sec type with alpha: ', alpha)
-            g.set_group_colors(colors, alpha=alpha)
-        if display_mode == "mechanism" and (
+            print('sec type with alpha: ', alpha,   self.renderer)
+            if   self.renderer == 'pyqtgraph':
+                g.set_group_colors(colors, alpha=alpha)
+            elif   self.renderer == 'mayavi':
+                print('set sectype colors mayavi')
+                # g.set_group_colors(colors, alpha=alpha)
+        elif display_mode == "mechanism" and (
             
             mechanism is not "None" or mechanism is not None
         ):
             print('Setting color map by mechanism: ', mechanism)
-            g.set_group_colors(colors, mechanism=mechanism)
+            if   self.renderer == 'pyqtgraph':
+                g.set_group_colors(colors, mechanism=mechanism)
 
     def vm_to_color(self, v: np.ndarray) -> np.ndarray:
         """
