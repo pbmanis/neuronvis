@@ -90,15 +90,16 @@ class HocViewer(gl.GLViewWidget):
         self.flags = flags
         self.camerapos = camerapos
         self.video_file = None
+        print('Renderer: ', renderer)
         if renderer == 'pyqtgraph' and fighandle == None:
             pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
             super(HocViewer, self).__init__()
             self.resize(figsize[0], figsize[1])
 
             # self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
-            # self.setBackgroundColor(pg.glColor(pg.mkColor(0.1, 0.1, 0.1, 1)))
+            self.setBackgroundColor(pg.glColor(pg.mkColor(0.1, 0.1, 0.1, 1)))
             color='w'
-            self.setBackgroundColor(0.4)
+            # self.setBackgroundColor(0.2)
             self.show()
             self.setWindowTitle('hocViewer')
             self.setCameraPosition(distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2])
@@ -112,8 +113,9 @@ class HocViewer(gl.GLViewWidget):
         # original grid code
         self.g = gl.GLGridItem()
         self.g.scale(10,10,10)
-        self.g.setColor(pg.mkColor('w'))
-        # self.addItem(self.g)
+        self.g.color = [0, 0, 0, 1]
+        # self.g.setColor(pg.mkColor('w'))
+        self.addItem(self.g)
         self.ax = GLAxisItem_r()
         self.addItem(self.ax)
         self.ax.setSize(50, 50, 50)
