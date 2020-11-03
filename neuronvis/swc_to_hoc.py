@@ -81,30 +81,32 @@ sbem_sectypes = {
 }
 
 # crenaming of cell parts to match cnmodel data tables (temporary)
-renaming = {
-    "basal_dendrite": "dendrite",
-    "Basal_Dendrite": "dendrite",
-    "Apical_Dendrite": "dendrite",
-    "apical_dendrite": "dendrite",
-    "proximal_dendrite": "dendrite",
-    "Proximal_Dendrite": "dendrite",
-    "distal_dendrite": "dendrite",
-    "Distal_Dendrite": "dendrite",
-    "Dendritic_Swelling": "dendrite",
-    "hub": "dendrite",
-    "Dendritic_Hub": "dendrite",
-    "Axon_Hillock": "hillock",
-    "Unmyelinated_Axon": "unmyelinatedaxon",
-    "Axon_Initial_Segment": "initialsegment",
-    "Axon_Heminode": "heminode",
-    "Axon_Node": "node",
-}
+# renaming = {
+#     "basal_dendrite": "dendrite",
+#     "Basal_Dendrite": "dendrite",
+#     "Apical_Dendrite": "dendrite",
+#     "apical_dendrite": "dendrite",
+#     "proximal_dendrite": "dendrite",
+#     "Proximal_Dendrite": "dendrite",
+#     "distal_dendrite": "dendrite",
+#     "Distal_Dendrite": "dendrite",
+#     "Dendritic_Swelling": "dendrite",
+#     "hub": "dendrite",
+#     "Dendritic_Hub": "dendrite",
+#     "Axon_Hillock": "hillock",
+#     "Unmyelinated_Axon": "unmyelinatedaxon",
+#     "Axon_Initial_Segment": "initialsegment",
+#     "Axon_Heminode": "heminode",
+#     "Axon_Node": "node",
+# }
 
 # when pruning, we remove any section type that is a 
 # part of either dendrite or axon.
 idsofpart = {
     'dendrite': [3, 4, 12, 13, 14, 18],
-    'axon': [2, 10, 11, 15, 16, 17]
+    'distal': [12, 14, 18],
+    'axon': [2, 10, 11, 15, 16, 17],
+    'soma': [1],
 }
 
 partsof = {
@@ -177,10 +179,12 @@ class SWC(object):
         self.scales = scales
         self.pruneaxon = False
         self.prunedendrite = False
+        self.prunedistal = False
         self.topology = False        
         if args is not None:
             self.pruneaxon = args.pruneaxon
             self.prunedendrite = args.prunedendrite
+            self.prunedistal = args.prunedistal
             self.topology = args.topology
         if secmap == "swc":
             self.sectypes = swc_sectypes
@@ -201,6 +205,7 @@ class SWC(object):
             raise TypeError("Must initialize with filename or data array.")
 
         self.sort()
+        self.set_parent_section('soma')
 
     def load(self, filename: Union[Path, str, None] = None) -> None:
         assert filename is not None
@@ -230,6 +235,7 @@ class SWC(object):
         self.data = self.data[indexes]
         self._id_lookup = None
         self._sections = None
+        print('sorted')
 
     def branch(self, id: int) -> list:
         """
@@ -270,9 +276,19 @@ class SWC(object):
         """
         return self.data[self.lookup[ident]]
 
+    def set_parent_section(self, secname: str) -> None:
+        soma_sec = None
+        for r in self.data:
+            # print('type: ', r['type'])
+            if r['type'] in idsofpart ["soma"]:
+                soma_sec = r.copy()
+        if soma_sec is not None:
+            self.reparent(ident=soma_sec['id']
+)
+            
     def reparent(self, ident: int) -> None:
         """
-        Rearrange tree to make *id* the new root parent.
+        Rearrange tree to make *ident* the new root parent.
         """
         d = self.data
 
@@ -281,13 +297,14 @@ class SWC(object):
             return
 
         parent = -1
-        while id != -1:
-            oldparent = self[id]["parent"]
-            self[id]["parent"] = parent
-            parent = id
-            id = oldparent
+        while ident != -1:
+            oldparent = self[ident]["parent"]
+            self[ident]["parent"] = parent
+            parent = ident
+            ident = oldparent
         self._children = None
         self.sort()
+        self.sections
 
     @property
     def sections(self) -> list:
@@ -315,11 +332,14 @@ class SWC(object):
 
             # build lists of unbranched node chains
             lasttype = self.data["type"][0]
+                
             for r in self.data:
                 if self.prunedendrite and r["type"] in idsofpart['dendrite']:
-                        continue
+                    continue
+                if self.prunedistal and r["type"] in idsofpart['distal']:
+                    continue
                 if self.pruneaxon and r["type"] in idsofpart['axon']:
-                        continue
+                    continue
                 sec.append(r["id"])
                 if (
                     r["id"] in branchpts
@@ -331,7 +351,6 @@ class SWC(object):
                     lasttype = r["type"]
 
             self._sections = sections
-
         return self._sections
 
     def connect(self, parent_id: int, swc: object) -> None:
@@ -358,9 +377,9 @@ class SWC(object):
         Write data to a HOC file.
         Each node type is written to a separate section list.
         """
-        if self.topology:
-            print("Showing topology: no file will be written")
-            return
+        # if self.topology:
+        #     print("Showing topology: no file will be written")
+        #     return
         hoc = []
         # Add some header information
         hoc.extend([f"// Translated from SWC format by: swc_to_hoc.py"])
@@ -398,7 +417,8 @@ class SWC(object):
             endpt = self[sec[-1]]["id"]
             sec_id = len(sec_ids)
             sec_ids[endpt] = sec_id
-
+            # print(i, sec, endpt, sec_id)
+ #            print(sects)
             # add section to list
             hoc.append(f"access sections[{sec_id:d}]")
             typ = self[sec[0]]["type"]
@@ -407,6 +427,8 @@ class SWC(object):
             # connect section to parent
             p = self[sec[0]]["parent"]
             if p != -1:
+                print(f"p: {str(p):s}, {sec_id:d}")
+                print(self[sec[0]])
                 hoc.append(
                     f"connect sections[{sec_id:d}](0), sections[{sec_ids[p]:d}](1)"
                 )
@@ -436,15 +458,14 @@ class SWC(object):
             hoc.append("}")
 
             hoc.append("")
-
+        # print("hoc: ", hoc)
         if filename is not None:
             with open(filename, "w") as fh:
                 fh.write("\n".join(hoc))
             print(f"Wrote hoc file: {str(filename):s}")
         # now generate reverse section map for reference
             self.make_segmap(filename)
-        else:
-            return hoc
+        return hoc
 
 
 
@@ -553,7 +574,7 @@ class SWC(object):
         dout = ""
         in_section = False
         secstr = ""
-        print("File: ", filename)
+        print("segmap File: ", filename)
         with open(filename, "r") as fh:
             for cnt, line in enumerate(fh):  # read the input file line by line
                 line = line.rstrip().lstrip()
@@ -646,7 +667,13 @@ def main() -> None:
         default=False,
         help="Prune all dendrite sections from the hoc output",
     )
-    
+    parser.add_argument(
+        "--prunedistal",
+        action="store_true",
+        dest="prunedistal",
+        default=False,
+        help="Prune all dendrite sections beyong proximal from the hoc output",
+    )
     parser.add_argument(
         "--pruneaxon",
         action="store_true",
