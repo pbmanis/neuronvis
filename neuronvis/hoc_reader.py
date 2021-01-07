@@ -130,7 +130,7 @@ class HocReader(object):
     def retrieve_section_group(self) -> dict:
         """
         Go through all the sections and generate a dictionary the section
-        mapping to its sectin type (or "group")
+        mapping to its section type (or "group")
         For example, with sections names axon[0], axon[1], ais[0], and soma[0],
         we would generate the following structure:
 
