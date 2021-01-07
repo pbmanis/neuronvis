@@ -1,7 +1,7 @@
 from __future__ import print_function
 from __future__ import absolute_import
 import pyqtgraph as pg
-import pyqtgraph.opengl as gl
+
 import numpy as np
 from .hoc_reader import HocReader
 from .hoc_graphics import HocGrid, HocCylinders, HocSurface, HocGraph, HocVolume
@@ -10,7 +10,33 @@ from .hoc_graphics import mpl_Cylinders
 from pyqtgraph.Qt import QtGui
 import matplotlib.pyplot as mpl
 from mayavi import mlab
-import OpenGL.GL as OGL
+
+# This fix (patch)  for opengl on Mac OSX Big Sur seems to work as a patch. 
+# could be put into pyqtgraph.opengl, I suspect. 
+# https://stackoverflow.com/questions/63475461/unable-to-import-opengl-gl-in-python-on-macos
+
+try:
+    import OpenGL
+    try:
+        import OpenGL.GL as OGL   # this fails in <=2020 versions of Python on OS X 11.x
+    except ImportError:
+        print('Drat, patching for Big Sur')
+        from ctypes import util
+        orig_util_find_library = util.find_library
+        def new_util_find_library( name ):
+            res = orig_util_find_library( name )
+            if res: return res
+            # return '/System/Library/Frameworks/'+name+'.framework/'+name
+            return "/System/Library/Frameworks/{}.framework/{}".format(name,name)
+        util.find_library = new_util_find_library
+        import OpenGL.GL as OGL
+except ImportError:
+    print('Import of optngl Failed')
+    pass
+
+import pyqtgraph.opengl as gl
+
+
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
 
@@ -47,28 +73,28 @@ class GLAxisItem_r(GLGraphicsItem):
     
     
     def paint(self):
-
+            
         #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         #glEnable( GL_BLEND )
         #glEnable( GL_ALPHA_TEST )
         self.setupGLState()
-        
+
         if self.antialias:
             OGL.glEnable(OGL.GL_LINE_SMOOTH)
             OGL.glHint(OGL.GL_LINE_SMOOTH_HINT, OGL.GL_NICEST)
-            
+
         OGL.glBegin( OGL.GL_LINES )
-        
+
         x,y,z = self.size()
-        OGL.glColor4f(1, 1, 1, .9)  # z is green
+        OGL.glColor4f(0, 1, 0, .9)  # z is green
         OGL.glVertex3f(0, 0, 0)
         OGL.glVertex3f(0, 0, z)
 
-        OGL.glColor4f(1, 1, 1, .9)  # y is yellow
+        OGL.glColor4f(1, 1, 0, .9)  # y is yellow
         OGL.glVertex3f(0, 0, 0)
         OGL.glVertex3f(0, y, 0)
 
-        OGL.glColor4f(1, 1, 1, .9)  # x is blue
+        OGL.glColor4f(0, 0, 1, .9)  # x is blue
         OGL.glVertex3f(0, 0, 0)
         OGL.glVertex3f(x, 0, 0)
         OGL.glEnd()

@@ -13,7 +13,32 @@ from . import mplcyl
 from mayavi import mlab
 from tvtk.api import tvtk
 from tvtk.pyface.scene import Scene
+
+# This fix (patch)  for opengl on Mac OSX Big Sur seems to work as a patch. 
+# could be put into pyqtgraph.opengl, or at top of pyqtgraph
+# https://stackoverflow.com/questions/63475461/unable-to-import-opengl-gl-in-python-on-macos
+
+try:
+    import OpenGL
+    try:
+        import OpenGL.GL as OGL   # this fails in <=2020 versions of Python on OS X 11.x
+    except ImportError:
+        print('Drat, patching for Big Sur')
+        from ctypes import util
+        orig_util_find_library = util.find_library
+        def new_util_find_library( name ):
+            res = orig_util_find_library( name )
+            if res: return res
+            # return '/System/Library/Frameworks/'+name+'.framework/'+name
+            return "/System/Library/Frameworks/{}.framework/{}".format(name,name)
+        util.find_library = new_util_find_library
+        import OpenGL.GL as OGL
+except ImportError:
+    print('Import of optngl Failed')
+    pass
+
 import pyqtgraph.opengl as gl
+
 from . import xkcd_colors
 
 Colors = xkcd_colors.get_colors()

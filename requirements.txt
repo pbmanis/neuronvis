@@ -1,7 +1,7 @@
 brotli==1.0.7
 cryptography==2.9.2
 cv==1.0.0
-Cython==0.29.19
+Cython==0.29.21
 importlib_metadata==1.6.0
 ipaddr==2.2.0
 keyring==21.2.1
@@ -9,7 +9,7 @@ lmfit==0.9.13
 lockfile==0.12.2
 lxml==4.5.1
 matplotlib==3.2.1
-mayavi==4.7.1
+
 mock==4.0.2
 mypy_extensions==0.4.3
 neuron==7.8.0.127
@@ -26,7 +26,12 @@ pyqtgraph==0.10.0
 scipy==1.4.1
 simplejson==3.17.0
 # required for mayavi in neuronvis
-vtk==8.1.2
+# vtk==8.1.2
+
+vtk==9.0.1
 wincertstore==0.2
 zipp==3.1.0
--e git+https://github.com/pbmanis/pylibrary.git@f16bcbe490e8a11d99792dfd65d3ed18a0cd6756#egg=pylibrary
+
+mayavi==4.7.2  # requires numpy and vtk first
+
+-e git+https://github.com/pbmanis/pylibrary.git@838d89618e13c916a52fe7cb2b59ab171d821c7e#egg=pylibrary

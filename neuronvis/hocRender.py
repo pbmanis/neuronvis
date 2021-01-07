@@ -263,7 +263,7 @@ class Render(object):
                 # g.set_group_colors(colors, alpha=alpha)
         elif display_mode == "mechanism" and (
             
-            mechanism is not "None" or mechanism is not None
+            mechanism != "None" or mechanism is not None
         ):
             print('Setting color map by mechanism: ', mechanism)
             if   self.renderer == 'pyqtgraph':
