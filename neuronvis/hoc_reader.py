@@ -18,7 +18,7 @@ class HocReader(object):
         hoc: a hoc object or a "xxx.hoc" file name.
     """
 
-    def __init__(self, hoc, somaonly=False) -> None:
+    def __init__(self, hoc, somaonly=False, secmap="swc", verify=False) -> None:
         self.file_loaded = False
         self.somaonly = somaonly
         print('hocreader: ', hoc)
@@ -34,16 +34,20 @@ class HocReader(object):
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
             elif fullfile.suffix in ['.swc']:
-                s = swc_to_hoc.SWC(filename=fullfile, secmap='swc')
+                s = swc_to_hoc.SWC(filename=fullfile, secmap=secmap, verify=verify)
                 hocl = s.write_hoc(None)
-                print(hocl)
                 hocstr = ''
                 for i in range(len(hocl)):
                     hocstr += hocl[i]+'\n'
-                print(hocstr)
+                if verify:
+                    print(hocstr)
+                neuron.h.hoc_stdout(
+                    "/dev/null"
+                )  # prevent junk from printing while reading the file
                 neuron.h(hocstr)
-                print('topology: ')
-                neuron.h.topology()
+                neuron.h.hoc_stdout()
+                # print('topology: ')
+                # neuron.h.topology()
                 success = 1
             else:
                 raise ValueError(
