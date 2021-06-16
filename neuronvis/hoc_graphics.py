@@ -13,7 +13,32 @@ from . import mplcyl
 from mayavi import mlab
 from tvtk.api import tvtk
 from tvtk.pyface.scene import Scene
+
+# This fix (patch)  for opengl on Mac OSX Big Sur seems to work as a patch. 
+# could be put into pyqtgraph.opengl, or at top of pyqtgraph
+# https://stackoverflow.com/questions/63475461/unable-to-import-opengl-gl-in-python-on-macos
+
+try:
+    import OpenGL
+    try:
+        import OpenGL.GL as OGL   # this fails in <=2020 versions of Python on OS X 11.x
+    except ImportError:
+        print('Drat, patching for Big Sur')
+        from ctypes import util
+        orig_util_find_library = util.find_library
+        def new_util_find_library( name ):
+            res = orig_util_find_library( name )
+            if res: return res
+            # return '/System/Library/Frameworks/'+name+'.framework/'+name
+            return "/System/Library/Frameworks/{}.framework/{}".format(name,name)
+        util.find_library = new_util_find_library
+        import OpenGL.GL as OGL
+except ImportError:
+    print('Import of optngl Failed')
+    pass
+
 import pyqtgraph.opengl as gl
+
 from . import xkcd_colors
 
 Colors = xkcd_colors.get_colors()
@@ -219,18 +244,21 @@ class HocGraphic(object):
             sections = self.h.get_section_group(group_name)
             if sections is None:
                 continue
+            if isinstance(color, str):
+                sec_color = Colors[color]
+            else:
+                sec_color = color
             for sec_name in sections:
-                if isinstance(color, str):
-                    color = Colors[color]
+                # print('setting color for Sec name: ', sec_name, 'group: ', group_name, 'to : ', sec_color)
                 index = self.h.sec_index[sec_name]
-
                 # print('mechanism: ', mechanism)
                 if mechanism not in [None, "None"]:
-                    g = self.h.get_density(self.h.sections[sec_name], mechanism)
-                    mechmax = max(mechmax, g)
-                    sec_colors[index, 3] = g  # use the alpha channel to se4t the color
+                    gbar = self.h.get_density(self.h.sections[sec_name], mechanism)
+                    mechmax = max(mechmax, gbar)
+                    sec_colors[index, 3] = gbar  # use the alpha channel to set the color
                 else:
-                    sec_colors[index] = color
+                    sec_colors[index] = sec_color
+                    # print('   seccolor: ', sec_color)
         mechmax = np.max(sec_colors[:, 3])
         mechmin = np.min(sec_colors[:, 3])
         # print('mechmax/min: ', mechmax, mechmin)
@@ -297,6 +325,7 @@ class mplGraphic(object):
             if sections is None:
                 continue
             for sec_name in sections:
+                print('Setting color for group: ', sec_name, 'to : ', color)
                 if isinstance(color, str):
                     color = Colors[color]
                 index = self.h.sec_index[sec_name]
@@ -313,7 +342,6 @@ class mplGraphic(object):
                     #      dsecs.append(group_name)
                     # if alpha is not None:
                     sec_colors[index, 3] = alpha
-                    print("  set group colors alpha: ", alpha)
         # print (mechmax)
         # print('sec colors: ', sec_colors)
         mechmax = np.max(sec_colors[:, 3])
@@ -392,6 +420,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
     def set_section_colors(self, sec_colors):
         colors = sec_colors[self.vertex_sec_ids]
         self.opts["meshdata"].setVertexColors(colors, indexed="faces")
+        self.opts["meshdata"].setFaceColors(colors, indexed="faces")
         self.meshDataChanged()
 
 
@@ -531,8 +560,8 @@ class mayavi_Cylinders(object):
             mlab.title('sec-type')
         fig = mlab.gcf()
         camera = fig.scene.camera
-        print(dir(camera))
-        print(camerapos)
+        # print(dir(camera))
+        # print(camerapos)
         mlab.view(camerapos[1]+45, camerapos[2]+45, camerapos[0])
         # self.cursor3d = mlab.points3d(0., 0., 0., mode='2darrow',
         #                         color=(1, 1, 1), [-10, 10, -10, 10, -10, 10],
@@ -589,7 +618,7 @@ class mayavi_Cylinders(object):
         color[:, 3] = 0.1 + 0.8 * v  # alpha
         # for j in range(4):
         #            print(np.max(color[:,j]))
-        print(color)
+        print('VM: ', color)
         return color
 
     # def set_section_colors(self, sec_colors):

@@ -119,11 +119,13 @@ class Render(object):
         initial_view:list=[200., 0., 0.],
         figsize:list=[1000., 1000.],
         output_file:Union[Path, str, None]=None,
+        verify:bool=False,
         fax:Union[object, None]=None,  # matplotlib figure axis
         somaonly:bool=False,
         color:str="blue",
         alpha:float=1.0,
         label:Union[str, None]=None,
+        secmap:str="swc", # mapping for swc files
         flags=None,  # passed to mayavi, probably str, list or object. 
     ) -> None:
 
@@ -141,17 +143,19 @@ class Render(object):
             if hoc_file is None:
                 exit()
         self.color = color
-        hoc = HocReader(hoc_file, somaonly=somaonly)
         self.renderer = display_renderer
         self.display_style = display_style
         self.display_mode = display_mode
+        self.label = label
+        self.alpha = alpha
+        self.verify = verify
+        hoc = HocReader(hoc_file, somaonly=somaonly, secmap=secmap, verify=verify)
         self.view = HocViewer(hoc, 
                         camerapos=initial_view,
                         renderer=self.renderer,
                         figsize=figsize,
                         fighandle=fighandle)
-        self.label = label
-        self.alpha = alpha
+        
         # print("Section groups:")
         # print(self.view.hr.sec_groups.keys())
         if display_style == "volume":
@@ -263,7 +267,7 @@ class Render(object):
                 # g.set_group_colors(colors, alpha=alpha)
         elif display_mode == "mechanism" and (
             
-            mechanism is not "None" or mechanism is not None
+            mechanism != "None" or mechanism is not None
         ):
             print('Setting color map by mechanism: ', mechanism)
             if   self.renderer == 'pyqtgraph':
@@ -360,6 +364,15 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--secmap",
+        type=str,
+        default="swc",
+        dest="secmap",
+        choices=["swc", "sbem", "sbem2"],
+        help="Choose section mapping",
+    )
+    
+    parser.add_argument(
         "-style",
         "-s",
         dest="display_style",
@@ -397,6 +410,15 @@ def main() -> None:
         help="Select the display alpha",
     )
 
+    parser.add_argument(
+        "-v",
+        "--verify",
+        dest = "verify",
+        action="store_true",
+        default=False,
+        help="print hoc output from swc for verification",
+    )
+    
     args = vars(parser.parse_args())
 
     hoc_file = None
@@ -428,7 +450,9 @@ def main() -> None:
         display_mode=args["display_mode"],
         mechanism=args["mechanism"],
         alpha=args["alpha"],
+        verify=args["verify"],
         sim_data=sim_data,
+        secmap=args["secmap"]
     )
 
 
