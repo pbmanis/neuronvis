@@ -126,10 +126,22 @@ sbem2_sectypes = {
 
 # when pruning, we remove any section type that is a 
 # part of either dendrite or axon.
-idsofpart = {
+idsofpart_swc = {
+    "dendrite": [3, 4, 12],
+    "axon:": [2, 10, 11],
+    "soma": [1],
+    "distal": [],
+}
+idsofpart_sbem = {
     'dendrite': [3, 4, 12, 13, 14, 18],
     'distal': [12, 14, 18],
     'axon': [2, 10, 11, 15, 16, 17],
+    'soma': [1],
+}
+idsofpart_sbem2 = {  # for sbem2 map (what a pain! )
+    'dendrite': [3, 4, 12, 13, 14, 11, 18],
+    'distal': [12, 14, 18],
+    'axon': [2, 10, 15, 16, 17],
     'soma': [1],
 }
 
@@ -215,10 +227,14 @@ class SWC(object):
             self.topology = args.topology
         if secmap == "swc":
             self.sectypes = swc_sectypes
+            self.idsofpart = idsofpart_swc
         elif secmap == "sbem":
             self.sectypes = sbem_sectypes
+            self.idsofpart = idsofpart_sbem
         elif secmap == "sbem2":
             self.sectypes = sbem2_sectypes
+            self.idsofpart = idsofpart_sbem2
+            
         else:
             raise ValueError("SWC number map type is not recognized: %s" % secmap)
 
@@ -309,7 +325,7 @@ class SWC(object):
         soma_sec = None
         for r in self.data:
             # print('type: ', r['type'])
-            if r['type'] in idsofpart ["soma"]:
+            if r['type'] in self.idsofpart["soma"]:
                 soma_sec = r.copy()
         if soma_sec is not None:
             self.reparent(ident=soma_sec['id']
@@ -349,7 +365,7 @@ class SWC(object):
             # find all nodes with nore than 1 child
             branchpts = set()  # no one is a branch
             endpoints = set(self.data["id"])  # everyone is an endpoint
-            print("endpoints: ", len(endpoints), len(self.data["id"]))
+            # print("endpoints: ", len(endpoints), len(self.data["id"]))
             endpoints.add(-1)
             seen = set()
             for r in self.data:
@@ -367,11 +383,11 @@ class SWC(object):
             lastid = self.data["id"]
                 
             for r in self.data:
-                if self.prunedendrite and r["type"] in idsofpart['dendrite']:
+                if self.prunedendrite and r["type"] in self.idsofpart['dendrite']:
                     continue
-                if self.prunedistal and r["type"] in idsofpart['distal']:
+                if self.prunedistal and r["type"] in self.idsofpart['distal']:
                     continue
-                if self.pruneaxon and r["type"] in idsofpart['axon']:
+                if self.pruneaxon and r["type"] in self.idsofpart['axon']:
                     continue
                 sec.append(r["id"])
                 if (
@@ -380,11 +396,12 @@ class SWC(object):
                     or r["type"] != lasttype
                 ):
                     if r['type'] == 10:
+                        print("Got a hillock: ")
                         print("id = ", r["id"], " lastid: ", lastid)
                         print("Restarting type 10, because: in endpoint: ", r["id"] in endpoints)
                         print(" or in brancpts: ", r["id"] in branchpts)
                         print(" or not same as last type: ", r["type"], " lastype = ", lasttype)
-                        continue
+                        # continue
                     sections.append(sec)
                     sec = []
                     lasttype = r["type"]
@@ -466,14 +483,16 @@ class SWC(object):
             if p != -1:
                # print(f"p: {str(p):s}, {sec_id:d}")
                # print(self[sec[0]])
-                hoc.append(
-                    f"connect sections[{sec_id:d}](0), sections[{sec_ids[p]:d}](1)"
-                )
+                # print(sec_id, sec_ids, p)
+                if p in sec_ids:
+                    hoc.append(
+                        f"connect sections[{sec_id:d}](0), sections[{sec_ids[p]:d}](1)"
+                        )
 
            # set up geometry for this section
             hoc.append("sections[%d] {" % sec_id)
             if len(sec) == 1:
-                if p != -1:  # if a parent exists, then make this connections
+                if p != -1 and p in sec_ids:  # if a parent exists, then make this connections
                     seg = sects[sec_ids[p]][
                         -1
                     ]  # get last segement in the parent section
