@@ -1,16 +1,16 @@
-ENVNAME="neuronvis_venv"
-python3 -m venv $ENVNAME
+ENVNAME="nvis_venv"
+python3.7 -m venv $ENVNAME
 source $ENVNAME/bin/activate
-pip install --upgrade pip  # be sure pip is up to date in the new env.
-pip install wheel  # seems to be missing (note singular)
-pip install cython
+pip3 install --upgrade pip  # be sure pip is up to date in the new env.
+pip3 install wheel  # seems to be missing (note singular)
+pip3 install cython
 # # if requirements.txt is not present, create:
 # # pip install pipreqs
 # # pipreqs
 #
 # #Then:
 #
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 source $ENVNAME/bin/activate
 
 # # build the mechanisms
