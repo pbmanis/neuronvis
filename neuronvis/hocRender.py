@@ -158,8 +158,6 @@ class Render(object):
                         figsize=figsize,
                         fighandle=fighandle)
         
-        # print("Section groups:")
-        # print(self.view.hr.sec_groups.keys())
         if display_style == "volume":
             if self.renderer == "pyqtgraph":
                 g = self.view.draw_volume()
@@ -198,14 +196,12 @@ class Render(object):
 
             elif   self.renderer == "vispy":
                 g = self.view.draw_vispy(mechanism=mechanism, color=section_colors, state=self.state)
-                # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
                 
             elif   self.renderer== "mayavi":
                 g = self.view.draw_mayavi_cylinders(
                     color=section_colors, label=label, flags=flags,
                     mechanism=mechanism,
                 )
-                # print("g: ", g)
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
                 g.g.render()
             else:

@@ -1242,9 +1242,6 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         state: Union[dict, None] = None,
     ) -> None:
 
-        print("vispy_Cylinders: entry state: ", state)
-        print("vispy_Cylinders: Mechanism: ", mechanism)
-        print("     color: ", color)
         self.h = h
         canvas = vispy.scene.SceneCanvas(
             keys="interactive", bgcolor=[0.65, 0.65, 0.65, 1]

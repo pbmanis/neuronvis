@@ -10,11 +10,6 @@ import vispy
 from matplotlib import pyplot as mpl
 from pyqtgraph.Qt import QtGui
 
-# from .hoc_reader import HocReader
-# from .hoc_graphics import HocGrid, HocCylinders, HocSurface, HocGraph, HocVolume
-# from .hoc_graphics import mayavi_Cylinders
-# from .hoc_graphics import mpl_Cylinders
-# from .hoc_graphics import vispy_Cylinders
 from . import hoc_graphics as HG
 from . import hoc_reader as HR
 
@@ -345,9 +340,6 @@ class HocViewer(gl.GLViewWidget):
         color: Union[list, tuple, None] = None,
         state: Union[dict, None] = None,
     ) -> None:
-        print("hoc_viewer: draw_vispy state: ", state)
-        print("mechanism: ", mechanism)
-        print("color: ", color)
         HG.vispy_Cylinders(self.hr, mechanism=mechanism, color=color, state=state)
 
     def save_frame(self, file_name: Union[str, None] = None) -> None:

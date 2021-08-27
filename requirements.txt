@@ -35,5 +35,6 @@ simplejson==3.17.0
 # mayavi==4.7.2  # requires numpy and vtk first
 
 # vispy # experimetnal
--e /Users/pbmanis/Desktop/Python/vispy
+# -e /Users/pbmanis/Desktop/Python/vispy
+-e git+https://github.com/vispy/vispy/commit/d901f6430784416bacb028e1ff450a3640400e44=vispy
 -e git+https://github.com/pbmanis/pylibrary.git@838d89618e13c916a52fe7cb2b59ab171d821c7e#egg=pylibrary
