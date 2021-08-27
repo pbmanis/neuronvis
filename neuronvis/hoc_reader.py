@@ -1,12 +1,14 @@
+import collections
 import os
 import re
-from typing import Union
 from pathlib import Path
-import collections
-import numpy as np
-from neuron import h
+from typing import Union
+
 import neuron
+import numpy as np
 import pyqtgraph as pg
+from neuron import h
+
 from . import swc_to_hoc
 
 
@@ -18,10 +20,16 @@ class HocReader(object):
         hoc: a hoc object or a "xxx.hoc" file name.
     """
 
-    def __init__(self, hoc, somaonly=False, secmap="swc", verify=False) -> None:
+    def __init__(
+        self,
+        hoc: object,
+        somaonly: bool = False,
+        secmap: str = "swc",
+        verify: bool = False,
+    ) -> None:
         self.file_loaded = False
         self.somaonly = somaonly
-        print('hocreader: ', hoc)
+        print("HocReader reading file:", hoc)
         if isinstance(hoc, str) or isinstance(hoc, Path):  # only python 3 anymore
             success = 0
             fullfile = Path(os.getcwd(), hoc)
@@ -33,12 +41,12 @@ class HocReader(object):
                 )  # prevent junk from printing while reading the file
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
-            elif fullfile.suffix in ['.swc']:
+            elif fullfile.suffix in [".swc"]:
                 s = swc_to_hoc.SWC(filename=fullfile, secmap=secmap, verify=verify)
                 hocl = s.write_hoc(None)
-                hocstr = ''
+                hocstr = ""
                 for i in range(len(hocl)):
-                    hocstr += hocl[i]+'\n'
+                    hocstr += hocl[i] + "\n"
                 if verify:
                     print(hocstr)
                 neuron.h.hoc_stdout(
@@ -46,8 +54,6 @@ class HocReader(object):
                 )  # prevent junk from printing while reading the file
                 neuron.h(hocstr)
                 neuron.h.hoc_stdout()
-                # print('topology: ')
-                # neuron.h.topology()
                 success = 1
             else:
                 raise ValueError(
@@ -85,12 +91,12 @@ class HocReader(object):
 
         # Add groupings by section list if possible:
         if len(sec_lists) > 1:
-            print('Grouping by list')
+            print("Grouping by list")
             self.add_groups_by_section_list(sec_lists)
 
         # Otherwise, try section prefixes
         elif len(sec_prefixes) > 1:
-            print('grouping by prefixes')
+            print("grouping by prefixes")
             for group, sections in sec_prefixes.items():
                 self.add_section_group(group, sections)
 
@@ -100,7 +106,7 @@ class HocReader(object):
         """
         self._read_section_info()
 
-    def get_section(self, sec_name) -> object:
+    def get_section(self, sec_name: str) -> object:
         """
         Return the hoc Section object with the given name.
         """
@@ -152,7 +158,6 @@ class HocReader(object):
                     if v == sec_name:
                         secprefixes[sec_name] = key
         return secprefixes
-        
 
     def get_mechanisms(self, section: object) -> dict:
         """
@@ -163,7 +168,9 @@ class HocReader(object):
         """
         return self.mechanisms[section]
 
-    def get_density(self, section: object, mechanism: str, value: str='gbar') -> float:
+    def get_density(
+        self, section: object, mechanism: str, value: str = "gbar"
+    ) -> float:
         """
         Get density mechanism that may be found the section.
         mechanism is a list ['name', 'gbarname']. This is needed because
@@ -182,18 +189,12 @@ class HocReader(object):
         info = self.get_sec_info(section)
         gmech = []
         for seg in section:
-            # # print('mechanism: ', mechanism)
-            # print('seg: ', seg, '\n    dir: ', dir(seg))
             if mechanism in dir(seg):
                 x = getattr(seg, mechanism)
-                # print('x: ', x, dir(x))
                 mecbar = getattr(x, value)
                 gmech.append(mecbar)
             else:
-                # raise()
-                gmech.append(0.0) # does not exist or is zero
-
-        #        print gmech
+                gmech.append(0.0)  # does not exist or is zero
         if len(gmech) == 0:
             gmech = 0.0
         return np.mean(gmech)
@@ -223,7 +224,9 @@ class HocReader(object):
         return info
 
     def _read_section_info(self) -> None:
-        # Collect list of all sections and their mechanism names.
+        """
+        Collect list of all sections and their mechanism names.
+        """
         self.sec_index = collections.OrderedDict()
         self.sections = collections.OrderedDict()
         self.mechanisms = collections.OrderedDict()
@@ -276,13 +279,6 @@ class HocReader(object):
                 continue
         return objs
 
-        # m = sid.match(hname)
-        # sections=[]
-        # if m is not None:
-        #     for v in getattr(self.h, hvar):
-        #         sections.append(v)
-        #     self.add_section_group(hvar, sections)
-
     def add_section_group(self, name: str, sections: list, overwrite=False) -> None:
         """
         Declare a grouping of sections (or section names). Sections may be
@@ -293,13 +289,11 @@ class HocReader(object):
             sections: list of section names or hoc Section objects.
 
         """
-        # print("add section group: ", name, self.sec_groups)
         if name in self.sec_groups and not overwrite:
             raise Exception(
                 "Group name %s is already used (use overwrite=True)." % name
             )
         if self.somaonly and name not in ["soma"]:
-            # print('not adding to section group: ', name)
             return
         group = set()
         for sec in sections:
@@ -307,9 +301,8 @@ class HocReader(object):
                 sec = sec.name()
             group.add(sec)
         self.sec_groups[name] = group
-        # print('for name, have: ', name, self.sec_groups[name])
-        
-    def get_section_group(self, name: str) -> list:
+
+    def get_section_group(self, name: str) -> Union[list, None]:
         """
         Return the set of section names in the group *name*.
         """
@@ -323,8 +316,6 @@ class HocReader(object):
         Search through all of the hoc variables to find those that are "SectionLists"
         """
         return self.find_hoc_hname(regex=r"SectionList\[")
-        # ns = self.hoc_namespace()
-        # return [name for name in ns if ns[name].hname().startswith('SectionList[')]
 
     def add_groups_by_section_list(self, names: list) -> None:
         """
@@ -380,18 +371,24 @@ class HocReader(object):
             sectype = groupmap[sec]
             # print(sectype)
             for i, xi in enumerate(x_sec):
-                vertexes.append(((x_sec[i], y_sec[i], z_sec[i]), d_sec[i], secid, str(sectype)))
+                vertexes.append(
+                    ((x_sec[i], y_sec[i], z_sec[i]), d_sec[i], secid, str(sectype))
+                )
                 indx_geom_seg = len(vertexes) - 1
                 if len(vertexes) > 1 and i > 0:
                     connections.append([indx_geom_seg, indx_geom_seg - 1])
             secid += 1
         self.edges = np.array(connections)
         self.vertexes = np.empty(
-            len(vertexes), dtype=[("pos", float, 3), ("dia", float), ("sec_index", int), ("sec_type", object)]
+            len(vertexes),
+            dtype=[
+                ("pos", float, 3),
+                ("dia", float),
+                ("sec_index", int),
+                ("sec_type", object),
+            ],
         )
         self.vertexes[:] = vertexes
-        # print(self.vertexes)
-       #  exit()
         return self.vertexes, self.edges
 
     def retrieve_coordinate(self, sec: object) -> tuple:
@@ -424,7 +421,9 @@ class HocReader(object):
         self.h.pop_section()
         return (np.array(x), np.array(y), np.array(z), np.array(d))
 
-    def make_volume_data(self, resolution: float = 0.4, max_size:float=200e6) -> tuple:
+    def make_volume_data(
+        self, resolution: float = 0.4, max_size: float = 200e6
+    ) -> tuple:
         """
         Using the current state of vertexes, edges, generates a scalar field
         useful for building isosurface or volumetric renderings.

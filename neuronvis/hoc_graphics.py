@@ -1,43 +1,49 @@
 import sys
-import numpy as np
+from colorsys import hsv_to_rgb
 from typing import Union
 
-import pyqtgraph as pg
-
-import matplotlib.pyplot as mpl
-import matplotlib.colors
 import matplotlib.cm
-
+import matplotlib.colors
+import numpy as np
+import pyqtgraph as pg
+from matplotlib import pyplot as mpl
 from mpl_toolkits.mplot3d import axes3d
-from . import mplcyl
-from mayavi import mlab
-from tvtk.api import tvtk
-from tvtk.pyface.scene import Scene
 
-# This fix (patch)  for opengl on Mac OSX Big Sur seems to work as a patch. 
+from . import mplcyl
+
+# from mayavi import mlab
+# from tvtk.api import tvtk
+# from tvtk.pyface.scene import Scene
+
+# This fix (patch)  for opengl on Mac OSX Big Sur seems to work as a patch.
 # could be put into pyqtgraph.opengl, or at top of pyqtgraph
 # https://stackoverflow.com/questions/63475461/unable-to-import-opengl-gl-in-python-on-macos
 
 try:
     import OpenGL
+
     try:
-        import OpenGL.GL as OGL   # this fails in <=2020 versions of Python on OS X 11.x
+        from OpenGL import GL as OGL  # this fails in <=2020 versions of Python on OS X 11.x
     except ImportError:
-        print('Drat, patching for Big Sur')
+        print("Drat, patching for Big Sur")
         from ctypes import util
+
         orig_util_find_library = util.find_library
-        def new_util_find_library( name ):
-            res = orig_util_find_library( name )
-            if res: return res
+
+        def new_util_find_library(name):
+            res = orig_util_find_library(name)
+            if res:
+                return res
             # return '/System/Library/Frameworks/'+name+'.framework/'+name
-            return "/System/Library/Frameworks/{}.framework/{}".format(name,name)
+            return "/System/Library/Frameworks/{}.framework/{}".format(name, name)
+
         util.find_library = new_util_find_library
-        import OpenGL.GL as OGL
+        from OpenGL import GL as OGL
 except ImportError:
-    print('Import of optngl Failed')
+    print("Import of opengl Failed")
     pass
 
-import pyqtgraph.opengl as gl
+from pyqtgraph import opengl as gl
 
 from . import xkcd_colors
 
@@ -156,7 +162,14 @@ def refaxes(scene=None, ext=[80, 75, 55], alpha=1):
         xyz = []
         for k in range(3):
             xyz.append([e[0][k], e[1][k]])
-        mlab.plot3d(xyz[0], xyz[1], xyz[2], color=(0.7, 0.7, 0.7), opacity=0., tube_radius=0.125)
+        mlab.plot3d(
+            xyz[0],
+            xyz[1],
+            xyz[2],
+            color=(0.7, 0.7, 0.7),
+            opacity=0.0,
+            tube_radius=0.125,
+        )
 
 
 def reflines(scene=None, ext=[80, 75, 55]):
@@ -173,24 +186,33 @@ def reflines(scene=None, ext=[80, 75, 55]):
         axisname = f"{axisl[j]:s} ({ext[j]:+.0f})"
         mlab.text3d(x0[i + 1], y0[i + 1], z0[i + 1], axisname, figure=scene, scale=3.0)
 
-def scalebar(scene=None, length=20.):
-     ext = [length, 0., 0.]
-     x0 = [-ext[0], ext[0], 0.0, 0.0, 0.0, 0.0]
-     y0 = [0.0, 0.0, -ext[1], ext[1], 0.0, 0.0]
-     z0 = [0.0, 0.0, 0.0, 0.0, -ext[2], ext[2]]
-     colc = [(1, 1, 1), (0, 1, 0), (0, 0, 1)]
-     # axisname = [f"x ({ext[0]:.0f})", 'y', 'z']
-     axisl = ["x", "y", "z"]
-     opacity = 1
-     for j, i in enumerate([0, 2, 4]):
-         if j > 0:
-             opacity = 0
-         mlab.plot3d(
-             x0[i : i + 2], y0[i : i + 2], z0[i : i + 2], color=colc[j], opacity=opacity, tube_radius=0.5
-         )
-         axisname = f"{axisl[j]:s} ({ext[j]:+.0f})"
-         if j == 0:
-             mlab.text3d(x0[i + 1], y0[i + 1], z0[i + 1], axisname, figure=scene, scale=3.0)
+
+def scalebar(scene=None, length=20.0):
+    ext = [length, 0.0, 0.0]
+    x0 = [-ext[0], ext[0], 0.0, 0.0, 0.0, 0.0]
+    y0 = [0.0, 0.0, -ext[1], ext[1], 0.0, 0.0]
+    z0 = [0.0, 0.0, 0.0, 0.0, -ext[2], ext[2]]
+    colc = [(1, 1, 1), (0, 1, 0), (0, 0, 1)]
+    # axisname = [f"x ({ext[0]:.0f})", 'y', 'z']
+    axisl = ["x", "y", "z"]
+    opacity = 1
+    for j, i in enumerate([0, 2, 4]):
+        if j > 0:
+            opacity = 0
+        mlab.plot3d(
+            x0[i : i + 2],
+            y0[i : i + 2],
+            z0[i : i + 2],
+            color=colc[j],
+            opacity=opacity,
+            tube_radius=0.5,
+        )
+        axisname = f"{axisl[j]:s} ({ext[j]:+.0f})"
+        if j == 0:
+            mlab.text3d(
+                x0[i + 1], y0[i + 1], z0[i + 1], axisname, figure=scene, scale=3.0
+            )
+
 
 class HocGraphic(object):
     """
@@ -217,7 +239,7 @@ class HocGraphic(object):
     def set_group_colors(
         self,
         colors: list,
-        default_color: list = (0.5, 0.5, 0.5, 0.5),
+        default_color: list = [0.5, 0.5, 0.5, 0.5],
         alpha: float = 1.0,
         mechanism: str = None,
         colormap: str = None,
@@ -232,14 +254,13 @@ class HocGraphic(object):
             alpha: If specified, this overrides the alpha value for all group colors.
         Side-effects: none.
         """
-        sec_colors = np.zeros((len(self.h.sections), 4), dtype=float)
-        sec_colors[:] = default_color
+        sec_colors = dict.fromkeys(self.h.sections)
         mechmax = 0.0
+        mechmin = 1.0
         cmap = pg.ColorMap(
             [0, 0.25, 0.6, 1.0], [(0, 0, 0), (1, 0, 0), (1, 1, 0), (1, 1, 1)]
         )
-        # print('set group colors')
-        dsecs = []
+        # color sections for each "group" or identified cell part
         for group_name, color in colors.items():
             sections = self.h.get_section_group(group_name)
             if sections is None:
@@ -248,27 +269,50 @@ class HocGraphic(object):
                 sec_color = Colors[color]
             else:
                 sec_color = color
-            for sec_name in sections:
-                # print('setting color for Sec name: ', sec_name, 'group: ', group_name, 'to : ', sec_color)
-                index = self.h.sec_index[sec_name]
-                # print('mechanism: ', mechanism)
+
+            for (
+                sec_name
+            ) in sections:  # set base color value; if using mechanism, then set gbar
+                sec_colors[sec_name] = sec_color.copy()
                 if mechanism not in [None, "None"]:
+                    sec_colors[sec_name] = [1, 0, 0, 1]
                     gbar = self.h.get_density(self.h.sections[sec_name], mechanism)
-                    mechmax = max(mechmax, gbar)
-                    sec_colors[index, 3] = gbar  # use the alpha channel to set the color
-                else:
-                    sec_colors[index] = sec_color
-                    # print('   seccolor: ', sec_color)
-        mechmax = np.max(sec_colors[:, 3])
-        mechmin = np.min(sec_colors[:, 3])
-        # print('mechmax/min: ', mechmax, mechmin)
-        #      print(sec_colors)
+                    mechmax = np.max((mechmax, gbar))
+                    mechmin = np.min((mechmin, gbar))
+                    sec_colors[sec_name][
+                        3
+                    ] = gbar  # use the alpha channel to set the color
+        # scale the alpha channel according to the mechanism
         if mechanism not in [None, "None"] and mechmax > 0.0:
-            for i, c in enumerate(sec_colors):
-                rgb = cmap.map(c[3] / mechmax, "float")
-                c[:3] = rgb * 255.0  # set alpha for all sections
-                c[3] = alpha
+            done = []
+            for group_name, color in colors.items():
+                sections = self.h.get_section_group(group_name)
+                if sections is None:
+                    continue
+                # rgb = sec_colors[c][:3]/mechmax # cmap.map(sec_colors[c][3] / mechmax, "float")
+                # sec_colors[c][:3] = [x for x in sec_colors[c][:3]] # set colors
+                for sec_name in sections:
+                    if sec_name not in done:
+                        print(sec_name, sec_colors[sec_name][3], mechmax)
+                        gbar = sec_colors[sec_name][3]
+                        if gbar / mechmax > 0.02:
+                            sec_colors[sec_name][:3] = list(
+                                np.array(sec_colors[sec_name][:3]) * gbar / mechmax
+                            )
+                            sec_colors[sec_name][
+                                3
+                            ] = 0.8  # gbar/mechmax # sec_colors[sec_name][3] / mechmax
+                        else:
+                            sec_colors[sec_name] = [0.9, 0.9, 0.9, 0.8]
+                        print(sec_colors[sec_name])
+                        done.append(sec_name)
+            # exit()
+
+        # print('final sec colors: ', [[sec, sec_colors[c]] for c in sec_colors.keys()])
+        self.sec_colors = sec_colors
         self.set_section_colors(sec_colors)
+        return sec_colors
+        # print(self.sec_colors)
 
 
 class mplGraphic(object):
@@ -325,7 +369,7 @@ class mplGraphic(object):
             if sections is None:
                 continue
             for sec_name in sections:
-                print('Setting color for group: ', sec_name, 'to : ', color)
+                print("Setting color for group: ", sec_name, "to : ", color)
                 if isinstance(color, str):
                     color = Colors[color]
                 index = self.h.sec_index[sec_name]
@@ -554,21 +598,21 @@ class mayavi_Cylinders(object):
             vmax=1,
             resolution=24,
         )
-        if mechanism not in [None, 'None']:
+        if mechanism not in [None, "None"]:
             mlab.title(mechanism, size=0.5)
         else:
-            mlab.title('sec-type')
+            mlab.title("sec-type")
         fig = mlab.gcf()
         camera = fig.scene.camera
         # print(dir(camera))
         # print(camerapos)
-        mlab.view(camerapos[1]+45, camerapos[2]+45, camerapos[0])
+        mlab.view(camerapos[1] + 45, camerapos[2] + 45, camerapos[0])
         # self.cursor3d = mlab.points3d(0., 0., 0., mode='2darrow',
         #                         color=(1, 1, 1), [-10, 10, -10, 10, -10, 10],
         #                         scale_factor=0.5)
         sb = mlab.scalarbar()
         # Scene.interactor.add_observer('KeyPressEvent', self.mayavi_report);
-        
+
         if flags is not None:
             if "norefaxes" not in flags:
                 refaxes()
@@ -592,12 +636,11 @@ class mayavi_Cylinders(object):
                 scale=2.0,
             )
 
-
         self.sec_ids = sec_ids
 
     def mayavi_report(self):
-        print('view: ', self.g.view())
-    
+        print("view: ", self.g.view())
+
     def map_to_color(self, v: np.ndarray, v_min=None, v_max=None) -> np.ndarray:
         """
         Convert an array of Vm to array of representative colors
@@ -618,7 +661,7 @@ class mayavi_Cylinders(object):
         color[:, 3] = 0.1 + 0.8 * v  # alpha
         # for j in range(4):
         #            print(np.max(color[:,j]))
-        print('VM: ', color)
+        print("VM: ", color)
         return color
 
     # def set_section_colors(self, sec_colors):
@@ -1139,96 +1182,226 @@ class mpl_Graph(object):
         TRY VISPY
 """
 
-# from vispy import app, gloo, visuals
-# from vispy.geometry import create_sphere
-# from vispy.geometry import create_cylinder
-# from vispy.geometry import create_grid_mesh
-#
-# from vispy.visuals.transforms import (STTransform, MatrixTransform,
-#                                       ChainTransform)
-#
-# class vispy_Cylinders(app.Canvas):
-#     """
-#     Input:
-#         h: HocReader instance
-#     """
-#
-#     def __init__(self, h):
-#         self.h = h
-#         app.Canvas.__init__(self, keys='interactive', size=(800, 550))
-#
-#         hcyl = mplcyl.TruncatedCone()
-#         print('1')
-#         #plot_tc(p0=np.array([1, 3, 2]), p1=np.array([8, 5, 9]), R=[5.0, 2.0])
-#         verts, edges = h.get_geometry()
-#
-#         self.meshes = []
-#         self.rotation = MatrixTransform()
-#         sec_ids = []
-#         s = 1.0
-#         x, y = 0., 0.
-#         for edge in edges:
-#             ends = verts['pos'][edge]  # xyz coordinate of one end [x,y,z]
-#             dia = verts['dia'][edge]  # diameter at that end
-#             sec_id = verts['sec_index'][edge[0]]  # save the section index
-#
-#             dif = ends[1]-ends[0]  # distance between the ends
-#             length = (dif**2).sum() ** 0.5
-#             # print length
-#             # print dia
-#             #C, T, B = hcyl.make_truncated_cone(p0=ends[0], p1=ends[1], R=[dia[0]/2., dia[1]/2.])
-#             mesh_verts =  create_cylinder(8, 8, radius=[dia[0]/2., dia[1]/2.], length=length, offset=False)
-#             #mesh_verts = create_grid_mesh(C[0], C[1], C[2])
-#
-#
-#             # sec_id_array = np.empty(mesh_verts.shape[0]*3, dtype=int)
-#             # # sec_id_array[:] = sec_id
-#             # meshes.append(mesh_verts)
-#             # sec_ids.append(sec_id_array)
-#             self.meshes.append(visuals.MeshVisual(meshdata=mesh_verts, color='r'))
-#
-# #             transform = ChainTransform([STTransform(translate=(x, y),
-# #                                                     scale=(s, s, s)),
-# #                                         self.rotation])
-# #
-# #         for i, mesh in enumerate(self.meshes):
-# # #            x = 800. * (i % grid[0]) / grid[0] + 40
-# #             mesh.transform = transform
-# #             mesh.transforms.scene_transform = STTransform(scale=(1, 1, 0.01))
-#
-#         gloo.set_viewport(0, 0, *self.physical_size)
-#         gloo.clear(color='white', depth=True)
-#
-#         for mesh in self.meshes:
-#             mesh.draw()
-#
-#         print('running')
-#         self.show()
-#         if sys.flags.interactive != 1:
-#             app.run()
-#         #exit(1)
-#
-#     def rotate(self, event):
-#         # rotate with an irrational amount over each axis so there is no
-#         # periodicity
-#         self.rotation.rotate(0.2 ** 0.5, (1, 0, 0))
-#         self.rotation.rotate(0.3 ** 0.5, (0, 1, 0))
-#         self.rotation.rotate(0.5 ** 0.5, (0, 0, 1))
-#         self.update()
-#
-#     def on_resize(self, event):
-#         # Set canvas viewport and reconfigure visual transforms to match.
-#         vp = (0, 0, self.physical_size[0], self.physical_size[1])
-#         self.context.set_viewport(*vp)
-#
-#         for mesh in self.meshes:
-#             mesh.transforms.configure(canvas=self, viewport=vp)
-#
-#     def on_draw(self, ev):
-#         gloo.set_viewport(0, 0, *self.physical_size)
-#         gloo.clear(color='black', depth=True)
-#
-#         for mesh in self.meshes:
-#             mesh.draw()
-#
-#
+import vispy  # from vispy import app, gloo, visuals
+from vispy import scene
+from vispy.geometry import create_cylinder, create_grid_mesh, create_sphere
+from vispy.visuals.transforms import (ChainTransform, MatrixTransform,
+                                      STTransform)
+
+
+class XYZAxisVisual(vispy.visuals.Visual):
+    """
+    Simple 3D axis for indicating coordinate system orientation. Axes are
+    x=red, y=green, z=blue.
+    """
+
+    def __init__(self, scale=100, **kwargs):
+        pos = np.array(
+            [
+                [0, 0, 0],
+                [scale, 0, 0],
+                [0, 0, 0],
+                [0, scale, 0],
+                [0, 0, 0],
+                [0, 0, scale],
+            ]
+        )
+        color = np.array(
+            [
+                [1, 0, 0, 1],
+                [1, 0, 0, 1],
+                [0, 1, 0, 1],
+                [0, 1, 0, 1],
+                [0, 0, 1, 1],
+                [0, 0, 1, 1],
+            ]
+        )
+        connect = "segments"
+        method = "agg"
+        width = 2
+        kwargs.setdefault("pos", pos)
+        kwargs.setdefault("color", color)
+        kwargs.setdefault("connect", connect)
+        kwargs.setdefault("method", method)
+        kwargs.setdefault("width", width)
+
+        self.line = vispy.visuals.line.line.LineVisual(**kwargs)
+
+
+class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
+    """
+    Input:
+        h: HocReader instance
+    """
+
+    def __init__(
+        self,
+        h: object,
+        mechanism: Union[str, None] = None,
+        color: Union[str, list, None] = None,
+        state: Union[dict, None] = None,
+    ) -> None:
+
+        print("vispy_Cylinders: entry state: ", state)
+        print("vispy_Cylinders: Mechanism: ", mechanism)
+        print("     color: ", color)
+        self.h = h
+        canvas = vispy.scene.SceneCanvas(
+            keys="interactive", bgcolor=[0.65, 0.65, 0.65, 1]
+        )
+        view = canvas.central_widget.add_view()
+        self.view = view
+        self.last_state = None
+        # print(dir(self.h.h.topology()))
+        pointsxyz = []
+        radii = []
+        colors = []
+        vertex_colors = []
+        ntpts = 32
+
+        if mechanism is None:
+            mech = None
+        elif isinstance(mechanism, list):
+            mech = mechanism[0]
+        else:
+            mech = None
+        section_colors = self.set_group_colors(mechanism=mech, colors=color)
+        # slist = [  # debugging
+        #     [1, 0, 0, 1],
+        #     [1, 1, 0, 1],
+        #     [0, 1, 0, 1],
+        #     [0, 1, 1, 1],
+        #     [0, 0, 1, 1],
+        #     [1, 0, 1, 1],
+        #     ]
+        # for i, s in enumerate(section_colors):
+        #     j = i % 2 #len(slist)
+        #     section_colors[s] = slist[2]
+        for sec in self.h.h.allsec():
+            secinfo = sec.psection()
+            # print(secinfo)
+            parentsec = secinfo["morphology"]["parent"]
+            if parentsec is not None:
+                psec_n = secinfo["morphology"]["parent"]
+                psecn = str(secinfo["morphology"]["parent"])[
+                    :-3
+                ]  # find the parent and get the last point
+                whichend = int(str(psec_n)[-2])
+                psec = self.h.get_section(psecn)
+                if whichend == 0:
+                    i = 0
+                else:
+                    i = psec.n3d() - 1
+                j = 0
+                pointsxyz.append([sec.x3d(j), sec.y3d(j), sec.z3d(j)])
+                radii.append(sec.diam3d(j) / 2.0)
+                colors.append(section_colors[psecn])  # color by parent
+                vertex_colors.append([colors[-1]] * ntpts)  # vertex matches face
+
+                pointsxyz.append([psec.x3d(i), psec.y3d(i), psec.z3d(i)])
+                radii.append(psec.diam3d(i) / 2.0)
+                colors.append(section_colors[str(psec)])  # color by parent
+                vertex_colors.append([colors[-1]] * ntpts)  # vertex matches face
+            n3d = sec.n3d()
+            for i in range(sec.n3d()):
+                pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
+                radii.append(sec.diam3d(i) / 2.0)
+                if n3d < 2:
+                    colors.append(section_colors[str(sec)])
+                else:
+                    colors.append(section_colors[str(sec)])
+                vertex_colors.append([colors[-1]] * ntpts)
+            if len(sec.children()) == 0:
+                i = sec.n3d() - 1
+                # pointsxyz.append(pointsxyz[-1]) # # duplicate last point for closure[sec.x3d(i), sec.y3d(i), sec.z3d(i)])
+                # colors.append(section_colors[str(sec)])
+                # vertex_colors.append([colors[-1]]*ntpts)
+                # radii.append(sec.diam3d(i)/2.)
+                pointsxyz.append([np.nan, np.nan, np.nan])  # now terminate this tube
+                radii.append(np.nan)
+                colors.append(section_colors[str(sec)])
+                vertex_colors.append([colors[-1]] * ntpts)
+            else:  # find all the children and extend to their start point
+                for c_sec in sec.children():
+                    i = 0
+                    pointsxyz.append([c_sec.x3d(i), c_sec.y3d(i), c_sec.z3d(i)])
+                    radii.append(c_sec.diam3d(i) / 2.0)
+                    colors.append(section_colors[sec.name()])  # color by parent
+                    vertex_colors.append([colors[-1]] * ntpts)  # vertex matches face
+        colors = np.array(colors)
+        vertex_colors = np.array(vertex_colors)
+        vertex_colors = np.reshape(
+            vertex_colors, (vertex_colors.shape[0] * vertex_colors.shape[1], -1)
+        )
+        l1 = vispy.scene.visuals.Tube(
+            pointsxyz,
+            radius=radii,
+            shading="flat",
+            color=colors,  # this is overridden by
+            # the vertex_colors argument
+            vertex_colors=vertex_colors,
+            tube_points=ntpts,
+        )
+
+        view.camera = scene.TurntableCamera()
+        if state is not None:
+            view.camera.set_state(state)
+            self.last_state = state
+        else:
+            view.camera.set_range((-100, 100), (-100, 100), (-100, 100))
+        # line = vispy.scene.visuals.Line(pos=[[0., 100.], [0., 0.]], color=[0.5,0.5,0.5,1.0], width=2.0, parent=view.scene)
+        # line.transform = scene.transforms.STTransform()
+        view.add(l1)
+        canvas.unfreeze()
+        axis = vispy.scene.visuals.XYZAxis(parent=view.scene)
+        # scalebar = XYZAxisVisual(scale=25.)
+        # view.add(scalebar)
+
+        # tube does not expose its limits yet
+        self.timer = vispy.app.timer.Timer(
+            interval=0.3, connect=self.timerevent, start=True
+        )
+        canvas.show()
+        if sys.flags.interactive != 1:
+            vispy.app.run()
+
+    def set_section_colors(self, sec_colors):
+        pass
+
+    def timerevent(self, ev=None):
+        state = self.view.camera.get_state()
+        if state != self.last_state:
+            self.last_state = state
+            print(state)
+
+    def get_section_color(
+        self, section, colors,
+    ):
+        sec_color = (0.5, 0.5, 0.5, 1)  # default color
+        sname = section.name
+        print("sname", sname)
+        return sec_color
+
+    def rotate(self, event):
+        # rotate with an irrational amount over each axis so there is no
+        # periodicity
+        self.rotation.rotate(0.2 ** 0.5, (1, 0, 0))
+        self.rotation.rotate(0.3 ** 0.5, (0, 1, 0))
+        self.rotation.rotate(0.5 ** 0.5, (0, 0, 1))
+        self.update()
+
+    def on_resize(self, event):
+        # Set canvas viewport and reconfigure visual transforms to match.
+        vp = (0, 0, self.physical_size[0], self.physical_size[1])
+        self.context.set_viewport(*vp)
+
+        for mesh in self.meshes:
+            mesh.transforms.configure(canvas=self, viewport=vp)
+        print(vp)
+
+    def on_draw(self, ev):
+        vispy.gloo.set_viewport(0, 0, *self.physical_size)
+        vispy.gloo.clear(color="black", depth=True)
+
+        for mesh in self.meshes:
+            mesh.draw()

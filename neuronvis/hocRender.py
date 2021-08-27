@@ -32,7 +32,7 @@ from typing import Union, Dict, List
 
 os.environ["PYQTGRAPH_QT_LIB"] = "PyQt5"
 import pyqtgraph as pg
-from mayavi import mlab
+# from mayavi import mlab
 import numpy as np
 
 from pylibrary.tools import fileselector
@@ -60,8 +60,8 @@ display_style = {
 display_renderers = {
     "pyqtgraph": "render with pyqtgraph",
     "mpl": "render using matplotlib ",
-    "mayavi": "Render with mayavi",
-    # "vispy": "render using vispy",
+    # "mayavi": "Render with mayavi",
+    "vispy": "render using vispy",
 }
 
 
@@ -126,10 +126,11 @@ class Render(object):
         alpha:float=1.0,
         label:Union[str, None]=None,
         secmap:str="swc", # mapping for swc files
+        state:Union[object, None]=None,
         flags=None,  # passed to mayavi, probably str, list or object. 
     ) -> None:
 
-
+        self.section_colors = section_colors
         if hoc_file == 'select':
             FS = fileselector.FileSelector(
                 title="Select file",
@@ -149,6 +150,7 @@ class Render(object):
         self.label = label
         self.alpha = alpha
         self.verify = verify
+        self.state = state # vispy object state for display turntable
         hoc = HocReader(hoc_file, somaonly=somaonly, secmap=secmap, verify=verify)
         self.view = HocViewer(hoc, 
                         camerapos=initial_view,
@@ -193,7 +195,11 @@ class Render(object):
             elif   self.renderer=="mpl":
                 g = self.view.draw_mpl_cylinders(fax=fax)
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
-            
+
+            elif   self.renderer == "vispy":
+                g = self.view.draw_vispy(mechanism=mechanism, color=section_colors, state=self.state)
+                # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+                
             elif   self.renderer== "mayavi":
                 g = self.view.draw_mayavi_cylinders(
                     color=section_colors, label=label, flags=flags,
@@ -203,11 +209,9 @@ class Render(object):
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
                 g.g.render()
             else:
-                raise ValueError("Can only render cylinders in pyqtgraph, matplotlib and mayavi ")
+                raise ValueError("Can only render cylinders in pyqtgraph, matplotlib, vispy and mayavi ")
 
-        elif   self.renderer == "vispy":
-            g = self.view.draw_vispy()
-
+ 
         elif display_mode == "vm":
 
             # Render animation of membrane voltage
@@ -266,7 +270,6 @@ class Render(object):
                 print('set sectype colors mayavi')
                 # g.set_group_colors(colors, alpha=alpha)
         elif display_mode == "mechanism" and (
-            
             mechanism != "None" or mechanism is not None
         ):
             print('Setting color map by mechanism: ', mechanism)
@@ -359,7 +362,7 @@ def main() -> None:
         dest="display_renderer",
         action="store",
         default="pyqtgraph",
-        choices=["pyqtgraph", "mayavi", "mpl"], # vispy but not really implemented yet
+        choices=["pyqtgraph", "vispy",  "mpl"], # vispy but not really implemented yet
         help="Select thedisplay_renderer(default pyqtgraph)",
     )
 
