@@ -462,6 +462,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         )  # 'balloon') # 'shaded')
 
     def set_section_colors(self, sec_colors):
+        print('seccolors: ', sec_colors)
         colors = sec_colors[self.vertex_sec_ids]
         self.opts["meshdata"].setVertexColors(colors, indexed="faces")
         self.opts["meshdata"].setFaceColors(colors, indexed="faces")
@@ -1250,10 +1251,10 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         self.view = view
         self.last_state = None
         # print(dir(self.h.h.topology()))
-        pointsxyz = []
-        radii = []
-        colors = []
-        vertex_colors = []
+        self.pointsxyz = []
+        self.radii = []
+        self.colors = []
+        self.vertex_colors = []
         ntpts = 32
 
         if mechanism is None:
@@ -1262,7 +1263,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             mech = mechanism[0]
         else:
             mech = None
-        section_colors = self.set_group_colors(mechanism=mech, colors=color)
+        self.section_colors = self.set_group_colors(mechanism=mech, colors=color)
         # slist = [  # debugging
         #     [1, 0, 0, 1],
         #     [1, 1, 0, 1],
@@ -1274,65 +1275,92 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         # for i, s in enumerate(section_colors):
         #     j = i % 2 #len(slist)
         #     section_colors[s] = slist[2]
+        secs_built = []
+        
+        root_section = None
         for sec in self.h.h.allsec():
             secinfo = sec.psection()
-            # print(secinfo)
-            parentsec = secinfo["morphology"]["parent"]
-            if parentsec is not None:
-                psec_n = secinfo["morphology"]["parent"]
-                psecn = str(secinfo["morphology"]["parent"])[
-                    :-3
-                ]  # find the parent and get the last point
-                whichend = int(str(psec_n)[-2])
-                psec = self.h.get_section(psecn)
-                if whichend == 0:
-                    i = 0
-                else:
-                    i = psec.n3d() - 1
-                j = 0
-                pointsxyz.append([sec.x3d(j), sec.y3d(j), sec.z3d(j)])
-                radii.append(sec.diam3d(j) / 2.0)
-                colors.append(section_colors[psecn])  # color by parent
-                vertex_colors.append([colors[-1]] * ntpts)  # vertex matches face
+            parent_sec = secinfo["morphology"]["parent"]
+            if parent_sec is None:
+                print('Root section: ', sec)
+                print('children: ', sec.children())
+                root_section = sec
+                break
 
-                pointsxyz.append([psec.x3d(i), psec.y3d(i), psec.z3d(i)])
-                radii.append(psec.diam3d(i) / 2.0)
-                colors.append(section_colors[str(psec)])  # color by parent
-                vertex_colors.append([colors[-1]] * ntpts)  # vertex matches face
-            n3d = sec.n3d()
-            for i in range(sec.n3d()):
-                pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
-                radii.append(sec.diam3d(i) / 2.0)
-                if n3d < 2:
-                    colors.append(section_colors[str(sec)])
-                else:
-                    colors.append(section_colors[str(sec)])
-                vertex_colors.append([colors[-1]] * ntpts)
-            if len(sec.children()) == 0:
-                i = sec.n3d() - 1
-                # pointsxyz.append(pointsxyz[-1]) # # duplicate last point for closure[sec.x3d(i), sec.y3d(i), sec.z3d(i)])
-                # colors.append(section_colors[str(sec)])
-                # vertex_colors.append([colors[-1]]*ntpts)
-                # radii.append(sec.diam3d(i)/2.)
-                pointsxyz.append([np.nan, np.nan, np.nan])  # now terminate this tube
-                radii.append(np.nan)
-                colors.append(section_colors[str(sec)])
-                vertex_colors.append([colors[-1]] * ntpts)
-            else:  # find all the children and extend to their start point
-                for c_sec in sec.children():
-                    i = 0
-                    pointsxyz.append([c_sec.x3d(i), c_sec.y3d(i), c_sec.z3d(i)])
-                    radii.append(c_sec.diam3d(i) / 2.0)
-                    colors.append(section_colors[sec.name()])  # color by parent
-                    vertex_colors.append([colors[-1]] * ntpts)  # vertex matches face
-        colors = np.array(colors)
-        vertex_colors = np.array(vertex_colors)
+        self.nsec = 0
+        self.level = 0
+        def walk_tree(sec):
+            self.nsec += 1
+            print(' '*self.level, sec)
+            for i in range(sec.n3d()):  # 
+                self.build_segment(sec, i, ntpts)
+            for csec in sec.children():
+                self.build_segment(sec, sec.n3d()-1, ntpts)
+                self.level += 1
+                walk_tree(csec)
+                self.level -= 1
+            # if len(sec.children()) == 0:
+            #     self.build_segment(sec, i, ntpts, end=True)
+                
+        
+        nsec = sum([1 for x in self.h.h.allsec()])
+        walk_tree(root_section)
+        print("walked ", self.nsec, ' of ', nsec)
+        # exit(1)
+        #
+        # for this_sec in self.h.h.allsec():
+        #     if this_sec in secs_built:
+        #         continue
+        #     secinfo = this_sec.psection()
+        #     # print(secinfo)
+        #     parent_sec = secinfo["morphology"]["parent"]
+        #     if parent_sec is not None:
+        #         parent_sec_str = str(parent_sec)[
+        #             :-3
+        #         ]  # find the parent and get the last point
+        #         whichend = int(str(parent_sec)[-2])
+        #         parent_section = self.h.get_section(parent_sec_str)
+        #         if whichend == 1:  # the parent end should always be 1 - should we check it?
+        #             i_parent = parent_section.n3d() - 1
+        #             j_child=0
+        #         else:
+        #             raise ValueError('Section mapping should always go from parent(1) to child(0)')
+        #         # print('parent -> child: ', i_parent, j_child)
+        #         self.build_segment(parent_section, i_parent, ntpts)
+        #         self.build_segment(this_sec, j_child, ntpts)
+        #     # now fill out the section in order
+        #     n3d = this_sec.n3d()  # number of 3d points in this section
+        #     for i in range(this_sec.n3d()):  #
+        #         self.build_segment(this_sec, i, ntpts)
+        #     secs_built.append(this_sec)
+        #     # connect to children
+        #     print(len(this_sec.children()))
+        #     if len(this_sec.children()) > 0: # find all the children and extend to their start point
+        #         print(len(this_sec.children()))
+        #         for child_sec in this_sec.children():
+        #             for i in range(child_sec.n3d()):
+        #                 self.build_segment(child_sec, i, ntpts)
+        #             secs_built.append(child_sec)
+        #         pass
+        #     else:  # section with no children - terminate here
+        #         print('sec with no children: ', this_sec)
+        #         # self.pointsxyz.append(self.pointsxyz[-1]) # # duplicate last point for closure
+        #         # self.colors.append(self.section_colors[str(this_sec)])
+        #         # self.vertex_colors.append([self.colors[-1]]*ntpts)
+        #         # self.radii.append(0.) # sec.diam3d(i)/2.)
+        #         self.pointsxyz.append([np.nan, np.nan, np.nan])  # now terminate this tube
+        #         self.radii.append(np.nan)
+        #         self.colors.append(self.section_colors[str(this_sec)])
+        #         self.vertex_colors.append([self.colors[-1]] * ntpts)
+
+        colors = np.array(self.colors)
+        vertex_colors = np.array(self.vertex_colors)
         vertex_colors = np.reshape(
             vertex_colors, (vertex_colors.shape[0] * vertex_colors.shape[1], -1)
         )
         l1 = vispy.scene.visuals.Tube(
-            pointsxyz,
-            radius=radii,
+            self.pointsxyz,
+            radius=self.radii,
             shading="flat",
             color=colors,  # this is overridden by
             # the vertex_colors argument
@@ -1361,6 +1389,20 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         canvas.show()
         if sys.flags.interactive != 1:
             vispy.app.run()
+
+    def build_segment(self, sec, i, ntpts, end=False):
+        if not end:
+            self.pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
+            self.radii.append(sec.diam3d(i) / 2.0)
+        else:
+            self.pointsxyz.append([np.nan, np.nan, np.nan])
+            self.radii.append(self.radii[-1])
+            
+        if sec.n3d() < 2:
+            self.colors.append(self.section_colors[str(sec)])
+        else:
+            self.colors.append(self.section_colors[str(sec)])
+        self.vertex_colors.append([self.colors[-1]] * ntpts)
 
     def set_section_colors(self, sec_colors):
         pass

@@ -158,6 +158,33 @@ class HocViewer(gl.GLViewWidget):
             self.setCameraPosition(
                 distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2]
             )
+            ####
+            # original grid code
+            self.g = gl.GLGridItem()
+            self.g.scale(10, 10, 10)
+            self.g.color = [0, 0, 0, 1]
+            # self.g.setColor(pg.mkColor('w'))
+            self.addItem(self.g)
+            self.ax = GLAxisItem_r()
+            self.addItem(self.ax)
+            self.ax.setSize(50, 50, 50)
+            # print(dir(self))
+            # self.mouseReleaseEvent(self.mouse_released2)
+            # print(self.signalsBlocked())
+            # print(dir(self.ax))
+            # print(self.ax.childItems())
+
+            # self.grid = self.draw_grid()
+            # self.resetGrid()
+            # self.grid = HocGrid()
+            # self.graphics.append(self.grid)
+            # gl.GLGridItem(color=pg.mkColor(128, 128, 128))
+
+            # self.grid.setSize(x=40., y=40., z=40.)  # 100 um grid spacing
+            # self.grid.setSpacing(x=20., y=20., z=20.)  # 10 um steps
+            # self.grid.scale(1,1,1)  # uniform scale
+            # self.grid.translate(0., 0., 0.)
+            # self.addItem(self.grid)
         elif renderer == "mayavi" and fighandle == None:
             fighandle = mlab.figure(
                 figure=None,
@@ -168,40 +195,15 @@ class HocViewer(gl.GLViewWidget):
             super(HocViewer, self).__init__()
 
         elif renderer == "mpl" and fighandle == None:
-            super(HocViewer, self).__init__()
+            pass
+            # super(HocViewer, self).__init__()
         elif renderer == "vispy" and fighandle == None:
             from vispy import scene
 
             canvas = scene.SceneCanvas(keys="interactive")
             view = canvas.central_widget.add_view()
             super(HocViewer, self).__init__()
-        ####
-        # original grid code
-        self.g = gl.GLGridItem()
-        self.g.scale(10, 10, 10)
-        self.g.color = [0, 0, 0, 1]
-        # self.g.setColor(pg.mkColor('w'))
-        self.addItem(self.g)
-        self.ax = GLAxisItem_r()
-        self.addItem(self.ax)
-        self.ax.setSize(50, 50, 50)
-        # print(dir(self))
-        # self.mouseReleaseEvent(self.mouse_released2)
-        # print(self.signalsBlocked())
-        # print(dir(self.ax))
-        # print(self.ax.childItems())
 
-        # self.grid = self.draw_grid()
-        # self.resetGrid()
-        # self.grid = HocGrid()
-        # self.graphics.append(self.grid)
-        # gl.GLGridItem(color=pg.mkColor(128, 128, 128))
-
-        # self.grid.setSize(x=40., y=40., z=40.)  # 100 um grid spacing
-        # self.grid.setSpacing(x=20., y=20., z=20.)  # 10 um steps
-        # self.grid.scale(1,1,1)  # uniform scale
-        # self.grid.translate(0., 0., 0.)
-        # self.addItem(self.grid)
 
     def mouse_released(self, event: object) -> None:
         print("released, event = ", event)
