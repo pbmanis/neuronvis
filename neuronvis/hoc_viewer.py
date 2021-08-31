@@ -132,10 +132,12 @@ class HocViewer(gl.GLViewWidget):
         hoc: str,
         camerapos: list = [200.0, 0.0, 0.0],
         renderer: str = "pyqtgraph",
+        style:str='cylinders',
         fighandle: Union[object, None] = None,
         figsize: list = [720, 720],
         flags: bool = None,
     ) -> None:
+        # super(HocViewer, self).__init__()
         if not isinstance(hoc, HR.HocReader):
             hoc = HR.HocReader(hoc)
         self.hr = hoc
@@ -169,6 +171,7 @@ class HocViewer(gl.GLViewWidget):
 
         elif renderer == "mpl" and fighandle == None:
             super(HocViewer, self).__init__()
+            
         elif renderer == "vispy" and fighandle == None:
             from vispy import scene
 

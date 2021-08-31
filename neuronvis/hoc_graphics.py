@@ -462,7 +462,9 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         )  # 'balloon') # 'shaded')
 
     def set_section_colors(self, sec_colors):
-        colors = sec_colors[self.vertex_sec_ids]
+        # print(self.vertex_sec_ids)
+        # print(sec_colors)
+        colors = [sec_colors[f"sections[{vertex_sec:d}]"] for vertex_sec in self.vertex_sec_ids]
         self.opts["meshdata"].setVertexColors(colors, indexed="faces")
         self.opts["meshdata"].setFaceColors(colors, indexed="faces")
         self.meshDataChanged()
