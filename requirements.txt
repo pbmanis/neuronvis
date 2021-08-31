@@ -15,7 +15,7 @@ matplotlib==3.4.3
 mock==4.0.2
 mypy_extensions==0.4.3
 neuron>=8.0
-numpy==1.21.2
+numpy==1.20.1
 # protobuf==3.12.1
 
 pyOpenSSL==19.1.0
@@ -35,6 +35,6 @@ simplejson==3.17.0
 # mayavi==4.7.2  # requires numpy and vtk first
 
 # vispy # experimetnal
-# -e /Users/pbmanis/Desktop/Python/vispy
--e git+https://github.com/vispy/vispy/commit/d901f6430784416bacb028e1ff450a3640400e44=vispy
+vispy>=0.8.1
+
 -e git+https://github.com/pbmanis/pylibrary.git@838d89618e13c916a52fe7cb2b59ab171d821c7e#egg=pylibrary
