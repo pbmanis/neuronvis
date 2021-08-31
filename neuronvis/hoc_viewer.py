@@ -132,12 +132,10 @@ class HocViewer(gl.GLViewWidget):
         hoc: str,
         camerapos: list = [200.0, 0.0, 0.0],
         renderer: str = "pyqtgraph",
-        style:str='cylinders',
         fighandle: Union[object, None] = None,
         figsize: list = [720, 720],
         flags: bool = None,
     ) -> None:
-        # super(HocViewer, self).__init__()
         if not isinstance(hoc, HR.HocReader):
             hoc = HR.HocReader(hoc)
         self.hr = hoc
@@ -266,7 +264,7 @@ class HocViewer(gl.GLViewWidget):
         -------
         HocSurface instance
         """
-        g = HocSurface(self.hr)
+        g = HG.HocSurface(self.hr)
         self.graphics.append(g)
         self.addItem(g)
         return g
@@ -324,11 +322,11 @@ class HocViewer(gl.GLViewWidget):
         MG = HG.mayavi_graph(self.hr, color=color, label=label, flags=flags)
         return MG
 
-    def draw_mpl_cylinders(self, fax: Union[object, None] = None) -> None:
+    def draw_mpl_cylinders(self, fax: Union[object, None] = None, colors=None) -> None:
         """
         fax is figure and axes: [fig, ax] from 3d plot definition
         """
-        HG.mpl_Cylinders(self.hr, fax=fax)
+        HG.mpl_Cylinders(self.hr, fax=fax, colors=colors)
 
     def draw_mpl_graph(
         self, fax: Union[object, None] = None, color: Union[list, tuple, None] = "blue"

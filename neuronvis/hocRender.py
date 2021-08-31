@@ -174,7 +174,7 @@ class Render(object):
             if self.renderer == "pyqtgraph":
                 g = self.view.draw_graph()
                 self.color_map(
-                    g, display, mechanism=mechanism, alpha = self.alpha,
+                    g, display_style, mechanism=mechanism, alpha = self.alpha,
                 )
             elif   self.renderer== "mpl":
                 g = self.view.draw_mpl_graph(fax=fax)
@@ -191,8 +191,8 @@ class Render(object):
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
 
             elif   self.renderer=="mpl":
-                g = self.view.draw_mpl_cylinders(fax=fax)
-                self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+                g = self.view.draw_mpl_cylinders(fax=fax, colors=section_colors)
+                # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
 
             elif   self.renderer == "vispy":
                 g = self.view.draw_vispy(mechanism=mechanism, color=section_colors, state=self.state)
