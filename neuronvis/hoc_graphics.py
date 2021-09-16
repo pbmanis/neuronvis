@@ -1265,6 +1265,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                #  print('children: ', sec.children())
                 root_section = sec
                 break
+        print(sec)
         
         self.nsec = 0
         self.level = 0
@@ -1312,7 +1313,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
 
         # self.view.camera = scene.TurntableCamera()
         self.view.camera = scene.ArcballCamera()
-        self.shading_filter = ShadingFilter(shininess=120)
+        self.shading_filter = ShadingFilter(shininess=100)
         self.attach_headlight(self.shading_filter, self.view)
         if state is not None:
             self.view.camera.set_state(state)  # set the orientation for the starting view
@@ -1322,6 +1323,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         for tube in vtubes:
             view.add(tube) # add them all in
         canvas.unfreeze()
+        
+        # create axis marker with 25 micron legs
         axis = vispy.scene.visuals.XYZAxis(parent=view)
         saxis = STTransform(translate=(0, 0, 0), scale=(25, 25, 25, 1))
         affine = saxis.as_matrix()
@@ -1341,7 +1344,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             vispy.app.run()
 
     def attach_headlight(self, shading_filter, view):
-        light_dir = (1, 1, 0, 0)
+        light_dir = (0, -1, 0, 0)
         shading_filter.light_dir = light_dir[:3]
         initial_light_dir = view.camera.transform.imap(light_dir)
 
@@ -1349,9 +1352,6 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         def on_transform_change(event):
             transform = view.camera.transform
             shading_filter.light_dir = transform.map(initial_light_dir)[:3]
-
-
-
 
     def build_segment(self, sec, i_pt3d, ntpts, end=False):
         for i in i_pt3d:
