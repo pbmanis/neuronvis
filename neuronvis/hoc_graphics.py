@@ -462,8 +462,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         )  # 'balloon') # 'shaded')
 
     def set_section_colors(self, sec_colors):
-        print('seccolors: ', sec_colors)
-        colors = sec_colors[self.vertex_sec_ids]
+        colors = [sec_colors[f"sections[{s:d}]"] for s in self.vertex_sec_ids]
         self.opts["meshdata"].setVertexColors(colors, indexed="faces")
         self.opts["meshdata"].setFaceColors(colors, indexed="faces")
         self.meshDataChanged()
@@ -1211,7 +1210,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             keys="interactive", bgcolor=[0.65, 0.65, 0.65, 1]
         )
         self.canvas = canvas
-        print(dir(self.canvas.events))
+        # print(dir(self.canvas.events))
         self.canvas.events.mouse_press.connect(self.on_mouse_event)
         # exit()
         view = canvas.central_widget.add_view()
@@ -1265,7 +1264,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                #  print('children: ', sec.children())
                 root_section = sec
                 break
-        
+        print("Root section: ", root_section)
         self.nsec = 0
         self.level = 0
         def walk_tree(sec):
@@ -1286,7 +1285,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                 self.level -= 1
             if len(sec.children()) == 0:
                 self.build_segment(sec, [sec.n3d()-1], ntpts, end=True)
-                print(".  ENDSEC: ", sec)
+                # print(".  ENDSEC: ", sec)
                 if len(self.pointsxyz) > 0:
                     xyz = ', '.join([f"{x:6.2f}" for x in self.pointsxyz[-1]])
                     # print(f" {self.radii[-1]:.3f}  {str(xyz):s}")
@@ -1297,9 +1296,9 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         walk_tree(root_section)
         print("walked ", self.nsec, ' of ', nsec)  # verify that we did all sections (no unconnected sections)
 
-        vtubes = []  # We create separate "tubes" for each segment that has been built
+        self.vtubes = []  # We create separate "tubes" for each segment that has been built
         for i in range(len(self.tubes['points'])):
-            vtubes.append(vispy.scene.visuals.Tube(
+            self.vtubes.append(vispy.scene.visuals.Tube(
                 self.tubes['points'][i], # self.pointsxyz,
                 radius=self.tubes['radii'][i], # radius=self.radii,
                 color=self.tubes['colors'][i], # this is overridden by
@@ -1310,8 +1309,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                 )
             )
 
-        # self.view.camera = scene.TurntableCamera()
-        self.view.camera = scene.ArcballCamera()
+        self.view.camera = scene.TurntableCamera()
+        # self.view.camera = scene.ArcballCamera()  # only uses distance, fov and translate.
         self.shading_filter = ShadingFilter(shininess=120)
         self.attach_headlight(self.shading_filter, self.view)
         if state is not None:
@@ -1319,7 +1318,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             self.last_state = state
         else:
             self.view.camera.set_range((-100, 100), (-100, 100), (-100, 100))
-        for tube in vtubes:
+        for tube in self.vtubes:
             view.add(tube) # add them all in
         canvas.unfreeze()
         axis = vispy.scene.visuals.XYZAxis(parent=view)
@@ -1329,9 +1328,9 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         view.add(axis)
 
         # tube does not expose its limits yet
-        # self.timer = vispy.app.timer.Timer(
-        #     interval=0.3, connect=self.timerevent, start=True
-        # )
+        self.timer = vispy.app.timer.Timer(
+            interval=0.3, connect=self.timerevent, start=True
+        )
         # self.canvas.events.mouse_press.connect((self, 'mouse_handler'))
         # self.canvas.events.mouse_release.connect((self, 'mouse_handler'))
         # self.canvas.events.mouse_move.connect((self, 'mouse_handler'))
@@ -1341,14 +1340,20 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             vispy.app.run()
 
     def attach_headlight(self, shading_filter, view):
-        light_dir = (1, 1, 0, 0)
+        light_dir = (-1, 1, 0, 0)
         shading_filter.light_dir = light_dir[:3]
-        initial_light_dir = view.camera.transform.imap(light_dir)
+        self.initial_light_dir = view.camera.transform.imap(light_dir)
 
         @view.scene.transform.changed.connect
         def on_transform_change(event):
+            # print("tranform scene direction")
+            # print(self.initial_light_dir)
             transform = view.camera.transform
-            shading_filter.light_dir = transform.map(initial_light_dir)[:3]
+            # direction = np.concatenate((self.initial_light_dir[:3], [0]))
+            direction = np.concatenate((shading_filter.light_dir[:3], [0]))
+            shading_filter.light_dir = transform.imap(direction)[:3]
+            # print(shading_filter.light_dir)
+            # shading_filter.light_dir = transform.imap(self.initial_light_dir)[:3]
 
 
 
@@ -1419,7 +1424,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
 
         for mesh in self.meshes:
             mesh.transforms.configure(canvas=self, viewport=vp)
-        print('resize: ', vp)
+        # print('resize: ', vp)
 
     def on_draw(self, ev):
         vispy.gloo.set_viewport(0, 0, *self.physical_size)
@@ -1430,8 +1435,19 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
     
     def on_mouse_event(self, event):
         #1=left, 2=right , 3=middle button
-        print("event.button: ", event.button)
-        return
+        # print("event.button: ", event.button)
+        # print(len(self.view.children))
+        # print(dir(self.view.children[0].children[0]))
+        # transform = self.view.camera.transform
+        # direction = np.concatenate((self.initial_light_dir, [0]))
+        # for i, tube in enumerate(self.vtubes):
+        #     print(dir(tube))
+        #     if i > 1:
+        #         break
+        # print(dir(tube.mesh_data))
+        # for mesh in self.meshes:
+        #     mesh.light_dir = transform.map(direction)[:3]
+        # return
         if event.button == 1:
             # self.view.interactive=False
             vis = self.canvas.visual_at(event.pos)
@@ -1459,6 +1475,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             sc_half = self.view.camera._scale_factor
             point = c[0] + dx-sc_half, c[1] + dy-sc_half, c[2] + dz+sc_half
             print("final point:", point[0], point[1], point[2])
+            
+            # move light
 
     def _render_fb(self, crop=None):
             """Render framebuffer."""

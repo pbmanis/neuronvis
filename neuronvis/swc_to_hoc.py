@@ -271,7 +271,7 @@ class SWC(object):
     def sort(self) -> None:
         """
         Sort the tree in topological order.
-        This is the first stop
+        This is the first step
         """
 
         order = self.branch(self.root)
