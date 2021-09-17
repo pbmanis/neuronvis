@@ -103,6 +103,12 @@ section_colors = {
     "tip": "powder blue",
     "parentaxon": "orange",
     "synapse": "black",
+    # other (cortex dendrites)
+    "dend1_*": 'magenta',
+    "dend2_*": "yellow",
+    "dend3_*": "dandelion",
+    "dend4_*": "orche",
+    
 }
 
 

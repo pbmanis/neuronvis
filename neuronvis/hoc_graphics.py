@@ -1321,6 +1321,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         for tube in self.vtubes:
             view.add(tube) # add them all in
         canvas.unfreeze()
+        
+        # create axis marker with 25 micron legs
         axis = vispy.scene.visuals.XYZAxis(parent=view)
         saxis = STTransform(translate=(0, 0, 0), scale=(25, 25, 25, 1))
         affine = saxis.as_matrix()
@@ -1354,9 +1356,6 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             shading_filter.light_dir = transform.imap(direction)[:3]
             # print(shading_filter.light_dir)
             # shading_filter.light_dir = transform.imap(self.initial_light_dir)[:3]
-
-
-
 
     def build_segment(self, sec, i_pt3d, ntpts, end=False):
         for i in i_pt3d:
