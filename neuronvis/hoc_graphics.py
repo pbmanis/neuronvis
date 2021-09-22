@@ -1267,33 +1267,9 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         print("Root section: ", root_section)
         self.nsec = 0
         self.level = 0
-        def walk_tree(sec):
-            """
-            Recursive walk through the dendritic tree - 
-            start at the root"""
-            self.nsec += 1
-            indent = ' '*self.level
-            # print(f"{indent:s}: {str(sec):s}. {sec.name():s}", end='')
-            # xyz = ', '.join([f"{x:6.2f}" for x in self.pointsxyz[-1]])
-            # print(f" {self.radii[-1]:.3f}  {str(xyz):s}")
-            self.build_segment(sec, range(sec.n3d()), ntpts)
-            for csec in sec.children():
-                self.build_segment(sec, [sec.n3d()-1], ntpts)
-                self.build_segment(csec, [0], ntpts)
-                self.level += 1
-                walk_tree(csec)
-                self.level -= 1
-            if len(sec.children()) == 0:
-                self.build_segment(sec, [sec.n3d()-1], ntpts, end=True)
-                # print(".  ENDSEC: ", sec)
-                if len(self.pointsxyz) > 0:
-                    xyz = ', '.join([f"{x:6.2f}" for x in self.pointsxyz[-1]])
-                    # print(f" {self.radii[-1]:.3f}  {str(xyz):s}")
-                pass
-                
         
         nsec = sum([1 for x in self.h.h.allsec()])
-        walk_tree(root_section)
+        self.walk_tree(root_section, ntpts)
         print("walked ", self.nsec, ' of ', nsec)  # verify that we did all sections (no unconnected sections)
 
         self.vtubes = []  # We create separate "tubes" for each segment that has been built
@@ -1341,6 +1317,58 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         if sys.flags.interactive != 1:
             vispy.app.run()
 
+    def walk_tree(self, sec, ntpts):
+        """
+        Recursive walk through the dendritic tree - 
+        start at the root"""
+        self.nsec += 1
+        indent = ' '*self.level
+        # print(f"{indent:s}: {str(sec):s}. {sec.name():s}", end='')
+        # xyz = ', '.join([f"{x:6.2f}" for x in self.pointsxyz[-1]])
+        # print(f" {self.radii[-1]:.3f}  {str(xyz):s}")
+        self.build_segment(sec, range(sec.n3d()), ntpts)
+        if len(sec.children()) == 0:  # no children, so end here
+            self.build_segment(sec, [sec.n3d()-1], ntpts, end=True)
+        else:
+            for csec in sec.children():
+                self.build_segment(sec, [sec.n3d()-1], ntpts)
+                self.build_segment(csec, [0], ntpts)
+                self.level += 1
+                self.walk_tree(csec, ntpts) # keep walking
+                self.level -= 1
+
+
+    def build_segment(self, sec, i_pt3d, ntpts, end=False):
+        for i in i_pt3d:
+            self.pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
+            self.radii.append(sec.diam3d(i) / 2.0)
+            self.colors.append(self.section_colors[str(sec)])
+            self.vertex_colors.append([self.colors[-1]] * ntpts)
+            self.tube_names.append(str(sec))
+                
+        if end:  # save the current data into a list and reset the "tube"
+            self.pointsxyz.append([np.nan, np.nan, np.nan])
+            self.radii.append(self.radii[-1])
+            self.colors.append(self.section_colors[str(sec)])
+            self.vertex_colors.append([self.colors[-1]] * ntpts)
+            
+            colors = np.array(self.colors)
+            vertex_colors = np.array(self.vertex_colors)
+            vertex_colors = np.reshape(
+                vertex_colors, (vertex_colors.shape[0] * vertex_colors.shape[1], -1)
+            )
+            
+            self.tubes['points'].append(self.pointsxyz)
+            self.tubes['radii'].append(self.radii)
+            self.tubes['colors'].append(colors)
+            self.tubes['vertices'].append(vertex_colors)
+            self.tubes['names'].append(self.tube_names)
+            self.pointsxyz = []
+            self.radii = []
+            self.colors = []
+            self.vertex_colors = []
+            self.tube_names = []
+
     def attach_headlight(self, shading_filter, view):
         light_dir = (-1, 1, 0, 0)
         shading_filter.light_dir = light_dir[:3]
@@ -1357,34 +1385,6 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             # print(shading_filter.light_dir)
             # shading_filter.light_dir = transform.imap(self.initial_light_dir)[:3]
 
-    def build_segment(self, sec, i_pt3d, ntpts, end=False):
-        for i in i_pt3d:
-            self.pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
-            self.radii.append(sec.diam3d(i) / 2.0)
-            self.colors.append(self.section_colors[str(sec)])
-            self.vertex_colors.append([self.colors[-1]] * ntpts)
-            self.tube_names.append(str(sec))
-                
-        if end:  # save the current data into a list and reset the "tube"
-            # self.pointsxyz.append([np.nan, np.nan, np.nan])
-            # self.radii.append(self.radii[-1])
-            # self.colors.append(self.section_colors[str(sec)])
-            # self.vertex_colors.append([self.colors[-1]] * ntpts)
-            colors = np.array(self.colors)
-            vertex_colors = np.array(self.vertex_colors)
-            vertex_colors = np.reshape(
-                vertex_colors, (vertex_colors.shape[0] * vertex_colors.shape[1], -1)
-            )
-            self.tubes['points'].append(self.pointsxyz)
-            self.tubes['radii'].append(self.radii)
-            self.tubes['colors'].append(colors)
-            self.tubes['vertices'].append(vertex_colors)
-            self.tubes['names'].append(self.tube_names)
-            self.pointsxyz = []
-            self.radii = []
-            self.colors = []
-            self.vertex_colors = []
-            self.tube_names = []
 
 
     def set_section_colors(self, sec_colors):
