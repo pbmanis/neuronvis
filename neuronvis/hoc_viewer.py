@@ -160,31 +160,35 @@ class HocViewer(gl.GLViewWidget):
             )
             ####
             # original grid code
-            self.g = gl.GLGridItem()
-            self.g.scale(10, 10, 10)
-            self.g.color = [0, 0, 0, 1]
-            # self.g.setColor(pg.mkColor('w'))
-            self.addItem(self.g)
+            # self.g = gl.GLGridItem()
+            # self.g.scale(10, 10, 10)
+            # self.g.color = [0, 0, 0, 1]
+            # # self.g.setColor(pg.mkColor('w'))
+            # self.addItem(self.g)
+            
+            # axis orientation item
             self.ax = GLAxisItem_r()
             self.addItem(self.ax)
-            self.ax.setSize(50, 50, 50)
+            self.ax.setSize(20, 20, 20)
             # print(dir(self))
             # self.mouseReleaseEvent(self.mouse_released2)
-            # print(self.signalsBlocked())
-            # print(dir(self.ax))
-            # print(self.ax.childItems())
-
+            # # print(self.signalsBlocked())
+            # # print(dir(self.ax))
+            # # print(self.ax.childItems())
+            #
             # self.grid = self.draw_grid()
             # self.resetGrid()
-            # self.grid = HocGrid()
-            # self.graphics.append(self.grid)
-            # gl.GLGridItem(color=pg.mkColor(128, 128, 128))
+            
+            self.grid = HG.HocGrid()
+            self.graphics.append(self.grid)
+            gl.GLGridItem(color=pg.mkColor(128, 128, 128))
 
-            # self.grid.setSize(x=40., y=40., z=40.)  # 100 um grid spacing
-            # self.grid.setSpacing(x=20., y=20., z=20.)  # 10 um steps
-            # self.grid.scale(1,1,1)  # uniform scale
-            # self.grid.translate(0., 0., 0.)
-            # self.addItem(self.grid)
+            self.grid.setSize(x=100., y=100., z=100.)  # 100 um grid spacing
+            self.grid.setSpacing(x=10., y=10., z=10.)  # 10 um steps
+            self.grid.scale(1,1,1)  # uniform scale
+            self.grid.translate(0., 0., 0.)
+            self.addItem(self.grid)
+            
         elif renderer == "mayavi" and fighandle == None:
             fighandle = mlab.figure(
                 figure=None,
