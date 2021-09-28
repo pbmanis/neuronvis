@@ -1325,12 +1325,6 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                 walk_from_tips(sec)
             print(len(self.tubes['points']))
             print('tot secs: ', self.nsec)
-        # exit()
-        
-        
-        
-        # print("walked ", self.nsec, ' of ', nsec)  # verify that we did all sections (no unconnected sections)
-        # exit()
         self.vtubes = []  # We create separate "tubes" for each segment that has been built
         for i in range(len(self.tubes['points'])):
             try:
@@ -1377,17 +1371,6 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         self.canvas.show()
         if sys.flags.interactive != 1:
             vispy.app.run()
-
-    def attach_headlight(self, shading_filter, view):
-        light_dir = (1, 1, -1, 0)
-        shading_filter.light_dir = light_dir[:3]
-        self.initial_light_dir = view.camera.transform.imap(light_dir)
-
-    # @view.scene.transform.changed.connect
-    def on_transform_change(self, event):
-        transform = self.view.camera.transform
-        direction = np.concatenate((self.shading_filter.light_dir[:3], [0]))
-        self.shading_filter.light_dir = transform.imap(direction)[:3]
 
 # Construct tubes for morphology
 
@@ -1473,6 +1456,17 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
     #         self.vertex_colors = []
     #         self.tube_names = []
 
+
+    def attach_headlight(self, shading_filter, view):
+        light_dir = (1, 1, -1, 0)
+        shading_filter.light_dir = light_dir[:3]
+        self.initial_light_dir = view.camera.transform.imap(light_dir)
+
+    # @view.scene.transform.changed.connect
+    def on_transform_change(self, event):
+        transform = self.view.camera.transform
+        direction = np.concatenate((self.shading_filter.light_dir[:3], [0]))
+        self.shading_filter.light_dir = transform.imap(direction)[:3]
 
     def set_section_colors(self, sec_colors):
         pass
