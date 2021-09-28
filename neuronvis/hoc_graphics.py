@@ -253,6 +253,9 @@ class HocGraphic(object):
                            groups listed in *colors*.
             alpha: If specified, this overrides the alpha value for all group colors.
         Side-effects: none.
+    
+        Note names may be "mangled" nad have different formats, so we try to handle
+        a few of those. 
         """
         sec_colors = dict.fromkeys(self.h.sections)
         mechmax = 0.0
@@ -263,6 +266,7 @@ class HocGraphic(object):
         # color sections for each "group" or identified cell part
         for group_name, color in colors.items():
             sections = self.h.get_section_group(group_name)
+            
             if sections is None:
                 continue
             if isinstance(color, str):
@@ -306,7 +310,6 @@ class HocGraphic(object):
                             sec_colors[sec_name] = [0.9, 0.9, 0.9, 0.8]
                         # print(sec_colors[sec_name])
                         done.append(sec_name)
-            # exit()
 
         # print('final sec colors: ', [[sec, sec_colors[c]] for c in sec_colors.keys()])
         self.sec_colors = sec_colors
@@ -460,6 +463,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         gl.GLMeshItem.__init__(
             self, meshdata=md, smooth=True, shader="balloon", glOptions="opaque"
         )  # 'balloon') # 'shaded')
+        print('hocCylinders in graphics has been done')
 
     def set_section_colors(self, sec_colors):
         colors = [sec_colors[f"sections[{s:d}]"] for s in self.vertex_sec_ids]
@@ -774,14 +778,14 @@ class mpl_Cylinders(mplGraphic):
         # print 'verts', verts
         # print 'edges', edges
         # print verts['pos']
-        # self.hg = HocGraphic(h)
-        # self.hg.set_section_colors = self.set_section_colors
+        self.hg = HocGraphic(h)
+        self.hg.set_section_colors = self.set_section_colors
         # super(HocCylinders, self).__init__()
-        # if isinstance(colors, str):
-        #     if colors in list(Colors.keys()):
-        #         colors = tuple(Colors[color])[0:3]
-        #     else:
-        #         raise ValueError("Color string %s not in Colors table" % color)
+        if isinstance(colors, str):
+            if colors in list(Colors.keys()):
+                colors = tuple(Colors[color])[0:3]
+            else:
+                raise ValueError("Color string %s not in Colors table" % color)
         meshes = []
         sec_ids = []
         self.surf = []
@@ -1182,6 +1186,8 @@ class mpl_Graph(object):
 """
 
 import vispy
+import vispy.io
+from vispy.gloo.util import _screenshot
 from vispy import app, gloo, visuals
 from vispy import scene
 from vispy.geometry import create_cylinder, create_grid_mesh, create_sphere
@@ -1207,7 +1213,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         self.h = h
         vispy.app.Canvas.__init__(self)
         canvas = vispy.scene.SceneCanvas(
-            keys="interactive", bgcolor=[0.65, 0.65, 0.65, 1]
+            keys="interactive", bgcolor=[0.75, 0.75, 0.75, 1]
         )
         self.canvas = canvas
         # print(dir(self.canvas.events))
@@ -1217,14 +1223,12 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         self.view = view
         self.last_state = None
         # print(dir(self.h.h.topology()))
-        self.pointsxyz = []
-        self.radii = []
-        self.colors = []
-        self.vertex_colors = []
-        self.tube_names = []
+        self.initialize_tube()
+
         ntpts = 32
         
-        self.tubes = {'points': [], "radii": [], "colors": [], "vertices": [], "names": []}
+        # list of tubes
+        self.tubes = {'points': [], "radii": [], "colors": [], "vertices": [], "names": [], "sections": []}
         self.tube_count = 0
         
         if mechanism is None:
@@ -1236,9 +1240,9 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         nsec = sum([1 for x in self.h.h.allsec()])
         self.section_colors = self.set_group_colors(mechanism=mech, colors=color)
         # this generates section colors according to their order
-        # import colorsys
-        # HSV_tuples = [(x*1.0/nsec, 0.6, 0.6) for x in range(nsec)]
-        # RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
+        import colorsys
+        HSV_tuples = [(x*1.0/nsec, 0.6, 0.6) for x in range(nsec)]
+        RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
         # for i, s in enumerate(self.section_colors):
         #     self.section_colors[s] = [RGB_tuples[i][0], RGB_tuples[i][1],RGB_tuples[i][2], 1]
         # slist = [  # debugging
@@ -1251,73 +1255,106 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         #     ]
         # for i, s in enumerate(self.section_colors):
         #     j = i % 3 #len(slist)
-        #     self.section_colors[s] = slist[j]
+            # self.section_colors[s] = slist[j]
         secs_built = []
-        
-        root_section = None
-        # find the root section - which is the only section with no parent
-        for sec in self.h.h.allsec():
-            secinfo = sec.psection()
-            parent_sec = secinfo["morphology"]["parent"]
-            if parent_sec is None:
-                # print('Root section: ', sec)
-               #  print('children: ', sec.children())
-                root_section = sec
-                break
-        print("Root section: ", root_section)
         self.nsec = 0
         self.level = 0
-        def walk_tree(sec):
-            """
-            Recursive walk through the dendritic tree - 
-            start at the root"""
-            self.nsec += 1
-            indent = ' '*self.level
-            # print(f"{indent:s}: {str(sec):s}. {sec.name():s}", end='')
-            # xyz = ', '.join([f"{x:6.2f}" for x in self.pointsxyz[-1]])
-            # print(f" {self.radii[-1]:.3f}  {str(xyz):s}")
-            self.build_segment(sec, range(sec.n3d()), ntpts)
-            for csec in sec.children():
-                self.build_segment(sec, [sec.n3d()-1], ntpts)
-                self.build_segment(csec, [0], ntpts)
-                self.level += 1
-                walk_tree(csec)
-                self.level -= 1
-            if len(sec.children()) == 0:
-                self.build_segment(sec, [sec.n3d()-1], ntpts, end=True)
-                # print(".  ENDSEC: ", sec)
-                if len(self.pointsxyz) > 0:
-                    xyz = ', '.join([f"{x:6.2f}" for x in self.pointsxyz[-1]])
-                    # print(f" {self.radii[-1]:.3f}  {str(xyz):s}")
-                pass
-                
+        self.ntpts = ntpts
         
-        nsec = sum([1 for x in self.h.h.allsec()])
-        walk_tree(root_section)
-        print("walked ", self.nsec, ' of ', nsec)  # verify that we did all sections (no unconnected sections)
+        start_pos = 'root'
+        if start_pos == 'root':
+            root_section = None
+            # find the root section - which is the only section with no parent
+            for sec in self.h.h.allsec():
+                secinfo = sec.psection()
+                parent_sec = secinfo["morphology"]["trueparent"]
+                if parent_sec is None:
+                    # print('Root section: ', sec)
+                   #  print('children: ', sec.children())
+                    root_section = sec
+                    break
+            def walk_tree(sec):
+                """
+                Recursive walk through the dendritic tree - 
+                starts at the root"""
+                self.nsec += 1
+                # indent = ' '*self.level
+                self.add_to_current_tube(sec, range(sec.n3d()))
+                if len(sec.children()) == 0:
+                    self.save_current_tube()
+                else:
+                    for csec in sec.children():
+                        self.level += 1
+                        walk_tree(csec)
+                        self.level -= 1
+                # print('len children: ', len(sec.children()))
+            
+            nsec = sum([1 for x in self.h.h.allsec()])
+            walk_tree(root_section)
 
+        elif start_pos =='tips':
+            tiplist = []
+            for sec in self.h.h.allsec():
+                childsec = sec.children()
+                if len(childsec) == 0:
+                    tiplist.append(sec)
+            print('tip list: ', tiplist)
+            print('n tips: ', len(tiplist))
+            prev_sec = None
+            def walk_from_tips(sec, prev_sec):
+                if sec in secs_built:
+                    # connect the calling section with the built section
+                    return
+                parent = sec.trueparentseg()  # find parent of what we just built
+                # print("sec, parent: ", sec, parent)
+                if parent is not None:  # check for parents - build this section and keep going
+                    self.build_segment(sec, list(range(sec.n3d()-1, -1, -1)), ntpts, endpoint=True)
+                    secs_built.append(sec)  # keep track
+                    self.nsec += 1
+                    walk_from_tips(parent.sec)
+                else: # build segment and terminate
+                    print("parent is none for section: ", sec)
+                    self.build_segment(sec, list(range(sec.n3d()-1, -1, -1)), ntpts, endpoint=True)
+                    secs_built.append(sec)  # keep track
+                    self.nsec += 1
+                #     self.build_segment(sec, list(range(sec.n3d()-1, -1, -1)), ntpts, endpoint=True)
+                    
+                        
+                
+            for sec in tiplist:
+                walk_from_tips(sec)
+            print(len(self.tubes['points']))
+            print('tot secs: ', self.nsec)
+        # exit()
+        
+        
+        
+        # print("walked ", self.nsec, ' of ', nsec)  # verify that we did all sections (no unconnected sections)
+        # exit()
         self.vtubes = []  # We create separate "tubes" for each segment that has been built
         for i in range(len(self.tubes['points'])):
-            self.vtubes.append(vispy.scene.visuals.Tube(
-                self.tubes['points'][i], # self.pointsxyz,
-                radius=self.tubes['radii'][i], # radius=self.radii,
-                color=self.tubes['colors'][i], # this is overridden by
-                vertex_colors=self.tubes['vertices'][i], # vertex_colors=vertex_colors,
-                name = str(self.tubes['names'][i]),  # likely a list of sections
-                shading="flat",
-                tube_points=ntpts,
-                )
-            )
-
+            try:
+                thistube = vispy.scene.visuals.Tube(
+                    self.tubes['points'][i], # self.pointsxyz,
+                    radius=self.tubes['radii'][i], # radius=self.radii,
+                    color=self.tubes['colors'][i], # this is overridden by
+                    vertex_colors=self.tubes['vertices'][i], # vertex_colors=vertex_colors,
+                    name = str(self.tubes['names'][i]),  # likely a list of sections
+                    shading="flat",
+                    tube_points=ntpts,
+                    )
+                self.vtubes.append(thistube)
+            except:
+                pass
         self.view.camera = scene.TurntableCamera()
         # self.view.camera = scene.ArcballCamera()  # only uses distance, fov and translate.
-        self.shading_filter = ShadingFilter(shininess=120)
+        self.shading_filter = ShadingFilter(shininess=80, light_dir=(10, 5, -5), shading='smooth')
         self.attach_headlight(self.shading_filter, self.view)
         if state is not None:
             self.view.camera.set_state(state)  # set the orientation for the starting view
             self.last_state = state
         else:
-            self.view.camera.set_range((-100, 100), (-100, 100), (-100, 100))
+            self.view.camera.set_range((-180, 180), (-180, 180), (-180, 180))
         for tube in self.vtubes:
             view.add(tube) # add them all in
         canvas.unfreeze()
@@ -1342,49 +1379,99 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             vispy.app.run()
 
     def attach_headlight(self, shading_filter, view):
-        light_dir = (-1, 1, 0, 0)
+        light_dir = (1, 1, -1, 0)
         shading_filter.light_dir = light_dir[:3]
         self.initial_light_dir = view.camera.transform.imap(light_dir)
 
-        @view.scene.transform.changed.connect
-        def on_transform_change(event):
-            # print("tranform scene direction")
-            # print(self.initial_light_dir)
-            transform = view.camera.transform
-            # direction = np.concatenate((self.initial_light_dir[:3], [0]))
-            direction = np.concatenate((shading_filter.light_dir[:3], [0]))
-            shading_filter.light_dir = transform.imap(direction)[:3]
-            # print(shading_filter.light_dir)
-            # shading_filter.light_dir = transform.imap(self.initial_light_dir)[:3]
+    # @view.scene.transform.changed.connect
+    def on_transform_change(self, event):
+        transform = self.view.camera.transform
+        direction = np.concatenate((self.shading_filter.light_dir[:3], [0]))
+        self.shading_filter.light_dir = transform.imap(direction)[:3]
 
-    def build_segment(self, sec, i_pt3d, ntpts, end=False):
-        for i in i_pt3d:
-            self.pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
-            self.radii.append(sec.diam3d(i) / 2.0)
-            self.colors.append(self.section_colors[str(sec)])
-            self.vertex_colors.append([self.colors[-1]] * ntpts)
-            self.tube_names.append(str(sec))
-                
-        if end:  # save the current data into a list and reset the "tube"
-            # self.pointsxyz.append([np.nan, np.nan, np.nan])
-            # self.radii.append(self.radii[-1])
-            # self.colors.append(self.section_colors[str(sec)])
-            # self.vertex_colors.append([self.colors[-1]] * ntpts)
-            colors = np.array(self.colors)
-            vertex_colors = np.array(self.vertex_colors)
-            vertex_colors = np.reshape(
-                vertex_colors, (vertex_colors.shape[0] * vertex_colors.shape[1], -1)
-            )
-            self.tubes['points'].append(self.pointsxyz)
-            self.tubes['radii'].append(self.radii)
-            self.tubes['colors'].append(colors)
-            self.tubes['vertices'].append(vertex_colors)
-            self.tubes['names'].append(self.tube_names)
-            self.pointsxyz = []
-            self.radii = []
-            self.colors = []
-            self.vertex_colors = []
-            self.tube_names = []
+# Construct tubes for morphology
+
+    def initialize_tube(self):
+        """
+        Intialize the list of all attributes of the tubes"""
+        self.pointsxyz = []
+        self.radii = []
+        self.colors = []
+        self.vertex_colors = []
+        self.tube_names = []
+        self.tube_sections = []
+
+    def _add_points(self, sec: object, i: int):
+        """
+        Add one point from the segment list to the tube
+        """
+        self.pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
+        self.radii.append(sec.diam3d(i) / 2.0)
+        self.colors.append(self.section_colors[str(sec)])
+        self.vertex_colors.append([self.colors[-1]] * self.ntpts)
+        self.tube_names.append(str(sec))
+        self.tube_sections.append(sec)
+        
+    def add_to_current_tube(self, section: object, i3d: list):
+        """
+        Add all of the segment points in the section into the current tube
+        """
+        if isinstance(i3d, int):
+            i3d = [i3d]
+        for ix in i3d:
+            self._add_points(section, ix)
+
+    def save_current_tube(self):
+        """
+        Finish off the current tube and save it in main dictionary lists
+        """
+        colors = np.array(self.colors)
+        vertex_colors = np.array(self.vertex_colors)
+        vertex_colors = np.reshape(
+            vertex_colors, (vertex_colors.shape[0] * vertex_colors.shape[1], -1)
+        )
+        self.tubes['points'].append(self.pointsxyz)
+        self.tubes['radii'].append(self.radii)
+        self.tubes['colors'].append(colors)
+        self.tubes['vertices'].append(vertex_colors)
+        self.tubes['names'].append(self.tube_names)
+        self.tubes['sections'].append(self.tube_sections)
+        
+        self.initialize_tube()  # prepare to build another one
+
+
+    # def build_segment(self, sec, i_pt3d, ntpts, endpoint=False):
+    #     # print("sec: ", sec)
+    #     for i in i_pt3d:
+    #         self.pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
+    #         self.radii.append(sec.diam3d(i) / 2.0)
+    #         self.colors.append(self.section_colors[str(sec)])
+    #         self.vertex_colors.append([self.colors[-1]] * ntpts)
+    #         self.tube_names.append(str(sec))
+    #         # print(f" set point {i:d} in sec: {str(sec):s}  ", self.section_colors[str(sec)])
+    #
+    #     if endpoint:  # save the current data into a list and reset the "tube"
+    #         self.pointsxyz.append([np.nan, np.nan, np.nan])
+    #         self.radii.append(self.radii[-1])
+    #         self.colors.append(self.section_colors[str(sec)])
+    #         self.vertex_colors.append([self.colors[-1]] * ntpts)
+    #         colors = np.array(self.colors)
+    #         vertex_colors = np.array(self.vertex_colors)
+    #         vertex_colors = np.reshape(
+    #             vertex_colors, (vertex_colors.shape[0] * vertex_colors.shape[1], -1)
+    #         )
+    #         self.tubes['points'].append(self.pointsxyz)
+    #         self.tubes['radii'].append(self.radii)
+    #         self.tubes['colors'].append(colors)
+    #         self.tubes['vertices'].append(vertex_colors)
+    #         self.tubes['names'].append(self.tube_names)
+    #
+    #         # now reset the current tube arrays
+    #         self.pointsxyz = []
+    #         self.radii = []
+    #         self.colors = []
+    #         self.vertex_colors = []
+    #         self.tube_names = []
 
 
     def set_section_colors(self, sec_colors):
@@ -1414,7 +1501,6 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         self.rotation.rotate(0.3 ** 0.5, (0, 1, 0))
         self.rotation.rotate(0.5 ** 0.5, (0, 0, 1))
         self.update()
-        print('did rotate')
 
     def on_resize(self, event):
         # Set canvas viewport and reconfigure visual transforms to match.
@@ -1423,30 +1509,22 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
 
         for mesh in self.meshes:
             mesh.transforms.configure(canvas=self, viewport=vp)
-        # print('resize: ', vp)
 
     def on_draw(self, ev):
         vispy.gloo.set_viewport(0, 0, *self.physical_size)
         vispy.gloo.clear(color="black", depth=True)
-
         for mesh in self.meshes:
             mesh.draw()
     
     def on_mouse_event(self, event):
         #1=left, 2=right , 3=middle button
-        # print("event.button: ", event.button)
-        # print(len(self.view.children))
-        # print(dir(self.view.children[0].children[0]))
-        # transform = self.view.camera.transform
-        # direction = np.concatenate((self.initial_light_dir, [0]))
-        # for i, tube in enumerate(self.vtubes):
-        #     print(dir(tube))
-        #     if i > 1:
-        #         break
-        # print(dir(tube.mesh_data))
-        # for mesh in self.meshes:
-        #     mesh.light_dir = transform.map(direction)[:3]
-        # return
+        if event.button == 2:
+            image = self.canvas.render()
+            
+            vispy.io.write_png("/Users/pbmanis/Desktop/Python/VCNModel/testing.png", image)
+            return
+        self.on_transform_change(event)
+
         if event.button == 1:
             # self.view.interactive=False
             vis = self.canvas.visual_at(event.pos)
@@ -1473,10 +1551,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             #shift by scale_factor half
             sc_half = self.view.camera._scale_factor
             point = c[0] + dx-sc_half, c[1] + dy-sc_half, c[2] + dz+sc_half
-            print("final point:", point[0], point[1], point[2])
-            
-            # move light
 
+            
     def _render_fb(self, crop=None):
             """Render framebuffer."""
             if not crop:
