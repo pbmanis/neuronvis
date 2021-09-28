@@ -108,6 +108,17 @@ section_colors = {
     "dend2_*": "yellow",
     "dend3_*": "dandelion",
     "dend4_*": "orche",
+    "apic": "dandelion",
+    "dend_1*": "red",
+    "dend_2*": "orange",
+    "dend_3*": "yellow",
+    "dend_4*": "green",
+    "dend_5*": "blue",
+    "dend_6*": "indigo",
+    "dend_7*": "violet",
+    'dendritic_0': "red",
+    'dendritic_5': "yellow",
+    'dendritic_7': "orange",
     
 }
 
@@ -261,7 +272,7 @@ class Render(object):
         colors:dict=section_colors,
         alpha: float = 1.0,
     ) -> None:
-        print('set color map')
+        print("set color map")
         assert g is not None
 
         if display_mode == "sec-type":
