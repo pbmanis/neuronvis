@@ -169,6 +169,7 @@ class Render(object):
         self.verify = verify
         self.state = state # vispy object state for display turntable
         hoc = HocReader(hoc_file, somaonly=somaonly, secmap=secmap, verify=verify)
+        title = str(Path(hoc_file).name)
         self.view = HocViewer(hoc, 
                         camerapos=initial_view,
                         renderer=self.renderer,
@@ -212,7 +213,7 @@ class Render(object):
                 # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
 
             elif   self.renderer == "vispy":
-                g = self.view.draw_vispy(mechanism=mechanism, color=section_colors, state=self.state)
+                g = self.view.draw_vispy(mechanism=mechanism, color=section_colors, state=self.state, title=title)
                 
             elif   self.renderer== "mayavi":
                 g = self.view.draw_mayavi_cylinders(

@@ -204,7 +204,7 @@ class HocViewer(gl.GLViewWidget):
         elif renderer == "vispy" and fighandle == None:
             from vispy import scene
 
-            canvas = scene.SceneCanvas(keys="interactive")
+            canvas = scene.SceneCanvas(keys="interactive", show=True,)
             view = canvas.central_widget.add_view()
             super(HocViewer, self).__init__()
 
@@ -345,8 +345,10 @@ class HocViewer(gl.GLViewWidget):
         mechanism: Union[str, None] = None,
         color: Union[list, tuple, None] = None,
         state: Union[dict, None] = None,
+        title: str = "vispy Cylinders"
     ) -> None:
-        HG.vispy_Cylinders(self.hr, mechanism=mechanism, color=color, state=state)
+        HG.vispy_Cylinders(self.hr, mechanism=mechanism, color=color, state=state,
+        title=title)
 
     def save_frame(self, file_name: Union[str, None] = None) -> None:
         """

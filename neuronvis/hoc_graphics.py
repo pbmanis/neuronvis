@@ -1208,13 +1208,14 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         mechanism: Union[str, None] = None,
         color: Union[str, list, None] = None,
         state: Union[dict, None] = None,
+        title: str="",
     ) -> None:
 
         self.h = h
-        vispy.app.Canvas.__init__(self)
+        vispy.app.Canvas.__init__(self, title="My title, not yours")
         canvas = vispy.scene.SceneCanvas(
-            keys="interactive", bgcolor=[0.75, 0.75, 0.75, 1]
-        )
+            keys="interactive", bgcolor=[0.75, 0.75, 0.75, 1],
+            title=title)
         self.canvas = canvas
         # print(dir(self.canvas.events))
         self.canvas.events.mouse_press.connect(self.on_mouse_event)
