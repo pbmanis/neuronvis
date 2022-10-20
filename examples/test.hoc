@@ -1,0 +1,63 @@
+objref soma
+soma = new SectionList()
+objref dendrite
+dendrite = new SectionList()
+
+create sections[5]
+
+access sections[0]
+soma.append()
+sections[0] {
+    pt3dadd(0., 0., -10., 0.5)
+    pt3dadd(0., 0., -7.5, 2.5)
+    pt3dadd(0., 0., -5., 8.5)
+    pt3dadd(0., 0., -0., 15.80)
+    pt3dadd(0., 0., 5., 9.5)
+    pt3dadd(0., 0., 7.5, 7.5)
+    pt3dadd(0., 0., 10., 5.0)
+}
+
+access sections[1]
+dendrite.append()
+connect sections[1](0), sections[0](1)
+sections[1] {
+  pt3dadd(0., 0., 12.5, 1.5)
+  pt3dadd(3., 3., 18., 1.8)
+  pt3dadd(5., 5., 24., 1.5)
+  pt3dadd(7., 7., 32., 1.5)
+  pt3dadd(9., 9., 45., 1.5)
+}
+
+access sections[2]
+dendrite.append()
+connect sections[2](0), sections[1](1)
+sections[2] {
+  pt3dadd(9., 9., 45, 1.0)
+  pt3dadd(3., 12., 48., 2.0)
+  pt3dadd(5., 18., 52., 5.0)
+  pt3dadd(7., 24., 55., 4.5)
+  pt3dadd(9., 30., 60., 1.0)
+}
+
+access sections[3]
+dendrite.append()
+connect sections[3](0), sections[0](1)
+sections[3] {
+  pt3dadd(0., 0., 12.5, 1.5)
+  pt3dadd(-3., 3., 18., 1.8)
+  pt3dadd(-5., 5., 24., 1.5)
+  pt3dadd(-7., 7., 32., 1.5)
+  pt3dadd(-9., 9., 45., 1.5)
+}
+
+access sections[4]
+dendrite.append()
+connect sections[4](0), sections[2](1)
+sections[4] {
+  pt3dadd( 9.,  30., 60., 1.0)
+  pt3dadd(10., 31., 58., 0.75)
+  pt3dadd(11., 32., 55., 0.75)
+  pt3dadd(12., 33., 51., 0.25)
+  pt3dadd(13., 34., 50., 0.25)
+
+}
