@@ -147,7 +147,7 @@ class HocViewer(gl.GLViewWidget):
         if renderer == "pyqtgraph" and fighandle == None:
             pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
             super(HocViewer, self).__init__()
-            self.resize(figsize[0], figsize[1])
+            # self.resize(figsize)
 
             # self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
             self.setBackgroundColor(pg.glColor(pg.mkColor(0.1, 0.1, 0.1, 1)))

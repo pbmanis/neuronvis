@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from dataclasses import dataclass, field
 from typing import Union, Dict, List
 
-os.environ["PYQTGRAPH_QT_LIB"] = "PyQt5"
+os.environ["PYQTGRAPH_QT_LIB"] = "PyQt6"
 import pyqtgraph as pg
 # from mayavi import mlab
 import numpy as np
@@ -248,7 +248,7 @@ class Render(object):
                 img = pg.makeQImage(self.view.renderToArray(size=figsize))
                 img.save(output_file)
             elif sys.flags.interactive == 0:
-                pg.Qt.QtGui.QApplication.exec_()
+                pg.Qt.QtGui.QGuiApplication.exec()
                 
         if self.renderer== "mayavi":
 

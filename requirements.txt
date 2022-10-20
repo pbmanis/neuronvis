@@ -15,17 +15,19 @@ matplotlib==3.4.3
 mock==4.0.2
 mypy_extensions==0.4.3
 neuron>=8.0
-numpy==1.20.1
+numpy # ==1.20.1
 # protobuf==3.12.1
 
 pyOpenSSL==19.1.0
-PyQt5==5.14.1
-PyQt5-sip==12.7.1
+pyqt6
+pyqt6-sip
+#PyQt5==5.14.1
+#PyQt5-sip==12.7.1
 
 # required for 3d display in pyqtgraph
 PyOpenGL==3.1.5
 pyqtgraph>=0.12
-scipy==1.7.1
+scipy #==1.7.1
 simplejson==3.17.0
 
 # required for mayavi in neuronvis

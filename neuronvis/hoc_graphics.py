@@ -791,7 +791,7 @@ class mpl_Cylinders(mplGraphic):
         self.surf = []
         if fax is None:
             fig = mpl.figure()
-            ax = fig.gca(projection="3d")
+            ax = fig.add_subplot(projection='3d')
         else:
             fig = fax[0]
             ax = fax[1]
