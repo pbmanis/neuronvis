@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import os
 
 # Use Semantic Versioning, http://semver.org/
-version_info = (0, 3, 1, '')
+version_info = (0, 3, 2, '')
 __version__ = '%d.%d.%d%s' % version_info
 
 
@@ -14,8 +14,8 @@ setup(name='neuronvis',
       author_email='pmanis@med.unc.edu',
       license='MIT',
       packages=find_packages(include=['neuronvis*']),
-      python_requires=">=3.7",
-      install_requires=['matplotlib>=3.0', 'numpy>=1.14', #, 'mayavi==4.7.1',
+      python_requires=">=3.10",
+      install_requires=['matplotlib>=3.8', 'numpy>=1.26', #, 'mayavi==4.7.1',
           #'vtk==8.1.2',
           ],
       zip_safe=False,
@@ -28,7 +28,7 @@ setup(name='neuronvis',
 
       },
       classifiers = [
-             "Programming Language :: Python :: 3.6+",
+             "Programming Language :: Python :: 3.10+",
              "Development Status ::  Beta",
              "Environment :: Console",
              "Intended Audience :: Manis Lab",
