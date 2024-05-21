@@ -54,6 +54,9 @@ swc_sectypes = {
     12: "dendrite",  # 'hub',
     # 13: 'proximal_dendrite',
     # 14: 'distal_dendrite',
+    18: "primarydendrite",
+    19: "preclaw",
+    20: "dendriticclaw",
 }
 
 # section types for SBEM data on bushy cells (additional definitions)
@@ -157,7 +160,10 @@ partsof = {
                 "Distal_Dendrite",
                 "Dendritic_Swelling",
                 "hub",
-                "Dendritic_Hub"],
+                "Dendritic_Hub",
+                "primarydendrite",
+                "preclaw",
+                "dendriticclaw"],
     "axon": ["Axon_Hillock", 
             "hillock",
             "Unmyelinated_Axon",
@@ -197,6 +203,7 @@ class SWC(object):
         secmap: str = "swc",
         data: Union[np.ndarray, None] = None,
         scales: Union[dict, None] = None,
+        center: bool = False,
         verify: bool = False,
         args: object = None
     ) -> None:
@@ -219,8 +226,10 @@ class SWC(object):
         self.prunedendrite = False
         self.prunedistal = False
         self.topology = False
+        self.center = False
         self.verify = verify
         if args is not None:
+            self.center = args.center
             self.pruneaxon = args.pruneaxon
             self.prunedendrite = args.prunedendrite
             self.prunedistal = args.prunedistal
@@ -257,6 +266,7 @@ class SWC(object):
         self.filename = Path(filename).with_suffix('.swc')
         print(f"Loading: {str(self.filename):s}")
         self.data = np.loadtxt(self.filename, dtype=self._dtype)
+
         if self.scales is not None:
             self.rescale(
                 x=self.scales["x"],
@@ -264,7 +274,13 @@ class SWC(object):
                 z=self.scales["z"],
                 r=self.scales["r"],
             )
-
+        if self.center:
+            self.translate(
+                x=-self.data["x"][0], # .min(),
+                y=-self.data["y"][0], # .min(),
+                z=-self.data["z"][0], # .min(),
+                r=0.0,
+            )
     def copy(self) -> object:
         return SWC(data=self.data.copy(), types=self.sectypes)
 
@@ -736,6 +752,15 @@ def main() -> None:
     )
     
     parser.add_argument(
+        "--center",
+        "-c",
+        dest="center",
+        action="store_true",
+        default=False,
+        help="Force first point to be (0,0,0) (default: False)",
+    )
+
+    parser.add_argument(
         "--prunedendrite",
         action="store_true",
         dest="prunedendrite",
@@ -777,7 +802,7 @@ def main() -> None:
 
     noseparatescale = True
     if fn.is_file():
-        s = SWC(filename=fn, secmap=args.secmap, scales=scales, verify=args.verify, args=args)
+        s = SWC(filename=fn, secmap=args.secmap, scales=scales, center=args.center, verify=args.verify, args=args)
         fname = args.filename
         s.show_topology()
         if noseparatescale or not (args.somascale or args.dendscale):

@@ -65,7 +65,6 @@ class GLAxisItem_r(GLGraphicsItem):
         if size is None:
             size = QtGui.QVector3D(1, 1, 1)
         self.antialias = antialias
-        print('size: ', size)
         self.setSize(size=size)
         self.setGLOptions(glOptions)
 
@@ -145,39 +144,45 @@ class HocViewer(gl.GLViewWidget):
         self.video_file = None
         print("hocviewer got Renderer: ", renderer)
         if renderer == "pyqtgraph" and fighandle == None:
-            pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
+            self.win = pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
+            self.win.setStyle("fusion")
+            dark_palette = QtGui.QPalette()
+            white = QtGui.QColor(255, 255, 255)
+            black = QtGui.QColor(0, 0, 0)
+            red = QtGui.QColor(255, 0, 0)
+            dark_palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor(53, 53, 53))
+            dark_palette.setColor(QtGui.QPalette.ColorRole.WindowText, white)
+            dark_palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor(25, 25, 25))
+            dark_palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor(53, 53, 53))
+            dark_palette.setColor(QtGui.QPalette.ColorRole.ToolTipBase, white)
+            dark_palette.setColor(QtGui.QPalette.ColorRole.ToolTipText, white)
+            dark_palette.setColor(QtGui.QPalette.ColorRole.Text, white)
+            dark_palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor(53, 53, 53))
+            dark_palette.setColor(QtGui.QPalette.ColorRole.ButtonText, white)
+            dark_palette.setColor(QtGui.QPalette.ColorRole.BrightText, red)
+            dark_palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor(42, 130, 218))
+            dark_palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor(42, 130, 218))
+            dark_palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, black)
+
+            self.win.setPalette(dark_palette)
+
             super(HocViewer, self).__init__()
             # self.resize(figsize)
 
-            # self.setBackgroundColor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
-            self.setBackgroundColor(pg.glColor(pg.mkColor(0.1, 0.1, 0.1, 1)))
+            self.setBackcolor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
+            self.win.setStyleSheet("{background-color: gray;}") 
             color = "w"
-            # self.setBackgroundColor(0.2)
             self.show()
             self.setWindowTitle("hocViewer")
             self.setCameraPosition(
                 distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2]
             )
-            ####
-            # original grid code
-            # self.g = gl.GLGridItem()
-            # self.g.scale(10, 10, 10)
-            # self.g.color = [0, 0, 0, 1]
-            # # self.g.setColor(pg.mkColor('w'))
-            # self.addItem(self.g)
-            
+           
             # axis orientation item
             self.ax = GLAxisItem_r()
+            print("color in ax: ", self.ax.property('color'))
             self.addItem(self.ax)
             self.ax.setSize(20, 20, 20)
-            # print(dir(self))
-            # self.mouseReleaseEvent(self.mouse_released2)
-            # # print(self.signalsBlocked())
-            # # print(dir(self.ax))
-            # # print(self.ax.childItems())
-            #
-            # self.grid = self.draw_grid()
-            # self.resetGrid()
             
             self.grid = HG.HocGrid()
             self.graphics.append(self.grid)
@@ -213,12 +218,13 @@ class HocViewer(gl.GLViewWidget):
         print("released, event = ", event)
 
     def setBackcolor(self, color: Union[str, list]) -> None:
+        print("setBackColor called with: ", color)
         self.setBackgroundColor(color)
 
     def setCamera(
         self, distance: float = 200.0, elevation: float = 45.0, azimuth: float = 45.0
     ) -> None:
-        self.camerapos = [distance, elevantion, azimuth]
+        self.camerapos = [distance, elevation, azimuth]
         # for opengl:
         self.setCameraPosition(distance=distance, elevation=elevation, azimuth=azimuth)
 
