@@ -8,7 +8,7 @@ import numpy as np
 import pyqtgraph as pg
 from matplotlib import pyplot as mpl
 from mpl_toolkits.mplot3d import axes3d
-
+import seaborn
 from . import mplcyl
 
 # from mayavi import mlab
@@ -419,6 +419,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         print("HOC Cylinders")
         meshes = []
         sec_ids = []
+        print("# edges: ", len(edges), len(verts))
         for edge in edges:
             ends = verts["pos"][edge]
             dia = verts["dia"][edge]
@@ -466,7 +467,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         print('hocCylinders in graphics has been done')
 
     def set_section_colors(self, sec_colors):
-        colors = [sec_colors[f"sections[{s:d}]"] for s in self.vertex_sec_ids]
+        colors = [sec_colors[f"sections[{s:d}]"] for s in self.vertex_sec_ids if sec_colors[f"sections[{s:d}]"] is not None]
         self.opts["meshdata"].setVertexColors(colors, indexed="faces")
         self.opts["meshdata"].setFaceColors(colors, indexed="faces")
         self.meshDataChanged()
