@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
-import ephys as EP
+# import ephys as EP
 import pylibrary.tools.tifffile as tifffile
 from pylibrary.tools import fileselector
 from pyqtgraph.Qt import QtCore, QtGui
@@ -24,8 +24,8 @@ class Viewer():
 #         if hasattr(QStyleFactory, 'AA_UseHighDpiPixmaps'):
 #             self.app.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
-        self.win = pg.QtGui.QWidget()
-        layout = pg.QtGui.QGridLayout()
+        self.win = pg.QtWidgets.QWidget()
+        layout = pg.QtWidgets.QGridLayout()
         self.win.setLayout(layout)
         self.win.setWindowTitle("viewer")
         self.win.resize(1024, 800)
