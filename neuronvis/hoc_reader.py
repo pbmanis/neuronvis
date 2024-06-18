@@ -24,6 +24,7 @@ class HocReader(object):
         self,
         hoc: object,
         somaonly: bool = False,
+        center: bool = False,
         secmap: str = "swc",
         verify: bool = False,
     ) -> None:

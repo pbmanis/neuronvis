@@ -32,6 +32,7 @@ from typing import Union, Dict, List
 
 os.environ["PYQTGRAPH_QT_LIB"] = "PyQt6"
 import pyqtgraph as pg
+
 # from mayavi import mlab
 import numpy as np
 
@@ -90,8 +91,9 @@ section_colors = {
     "Distal_Dendrite": "yellow",
     "dend": "magenta",
     "dendrite": "magenta",
-    "Proximal_Dendrite": "dandelion", # "wintergreen",
+    "Proximal_Dendrite": "dandelion",  # "wintergreen",
     "basal": "magenta",
+    "basal_dendrite": "magenta",
     "Dendritic_Swelling": "ochre",
     "Dendritic_Hub": "neon red",
     # granule cell
@@ -108,7 +110,7 @@ section_colors = {
     "parentaxon": "orange",
     "synapse": "black",
     # other (cortex dendrites)
-    "dend1_*": 'magenta',
+    "dend1_*": "magenta",
     "dend2_*": "yellow",
     "dend3_*": "dandelion",
     "dend4_*": "orche",
@@ -120,43 +122,52 @@ section_colors = {
     "dend_5*": "blue",
     "dend_6*": "indigo",
     "dend_7*": "violet",
-    'dendritic_0': "red",
-    'dendritic_5': "yellow",
-    'dendritic_7': "orange",
-    
+    "dendritic_0": "red",
+    "dendritic_5": "yellow",
+    "dendritic_7": "orange",
+    "custom": "white",
+    "unspecified neurites": "gold",
+    "preclaw": "powder blue",
+    "dendriticclaw": "neon red",
+    "type_8": "red",
+    "type_13": "orange",
+    "type_14": "yellow",
+    "type_15": "green",
+
 }
 
 
 class Render(object):
     def __init__(
         self,
-        hoc_file:Union[Path, str, None]=None,
-        display_style:str="cylinders",
-        display_renderer:str="pyqtgraph",
-        display_mode:str="sec-type",
-        mechanism:Union[str, None]=None,
-        fighandle:Union[object, None]=None,
-        sim_data:Union[Path, str, None]=None,
-        initial_view:list=[200., 0., 0.],
-        figsize:list=[1000., 1000.],
-        output_file:Union[Path, str, None]=None,
-        verify:bool=False,
-        fax:Union[object, None]=None,  # matplotlib figure axis
-        somaonly:bool=False,
-        color:str="blue",
-        alpha:float=1.0,
-        label:Union[str, None]=None,
-        secmap:str="swc", # mapping for swc files
-        state:Union[object, None]=None,
-        flags=None,  # passed to mayavi, probably str, list or object. 
+        hoc_file: Union[Path, str, None] = None,
+        display_style: str = "cylinders",
+        center: bool = False,
+        display_renderer: str = "pyqtgraph",
+        display_mode: str = "sec-type",
+        mechanism: Union[str, None] = None,
+        fighandle: Union[object, None] = None,
+        sim_data: Union[Path, str, None] = None,
+        initial_view: list = [200.0, 0.0, 0.0],
+        figsize: list = [1000.0, 1000.0],
+        output_file: Union[Path, str, None] = None,
+        verify: bool = False,
+        fax: Union[object, None] = None,  # matplotlib figure axis
+        somaonly: bool = False,
+        color: str = "blue",
+        alpha: float = 1.0,
+        label: Union[str, None] = None,
+        secmap: str = "swc",  # mapping for swc files
+        state: Union[object, None] = None,
+        flags=None,  # passed to mayavi, probably str, list or object.
     ) -> None:
 
         self.section_colors = section_colors
-        if hoc_file == 'select':
+        if hoc_file == "select":
             FS = fileselector.FileSelector(
                 title="Select file",
                 dialogtype="file",
-                extensions=['.hoc', '.hocx', '.swc'],
+                extensions=[".hoc", ".hocx", ".swc"],
                 startingdir=".",
                 useNative=True,
                 standalone=False,
@@ -166,20 +177,23 @@ class Render(object):
                 exit()
         self.color = color
         self.renderer = display_renderer
+        self.center = center
         self.display_style = display_style
         self.display_mode = display_mode
         self.label = label
         self.alpha = alpha
         self.verify = verify
-        self.state = state # vispy object state for display turntable
-        hoc = HocReader(hoc_file, somaonly=somaonly, secmap=secmap, verify=verify)
+        self.state = state  # vispy object state for display turntable
+        hoc = HocReader(hoc_file, somaonly=somaonly, secmap=secmap, center=center, verify=verify)
         title = str(Path(hoc_file).name)
-        self.view = HocViewer(hoc, 
-                        camerapos=initial_view,
-                        renderer=self.renderer,
-                        figsize=figsize,
-                        fighandle=fighandle)
-        
+        self.view = HocViewer(
+            hoc,
+            camerapos=initial_view,
+            renderer=self.renderer,
+            figsize=figsize,
+            fighandle=fighandle,
+        )
+
         if display_style == "volume":
             if self.renderer == "pyqtgraph":
                 g = self.view.draw_volume()
@@ -190,46 +204,54 @@ class Render(object):
 
         elif display_style == "surface":
             g = self.view.draw_surface()
-            self.color_map(g, display_mode, colors=section_colors, mechanism=mechanism, alpha=self.alpha)
+            self.color_map(
+                g, display_mode, colors=section_colors, mechanism=mechanism, alpha=self.alpha
+            )
 
         elif display_style == "graph":
             if self.renderer == "pyqtgraph":
                 g = self.view.draw_graph()
                 self.color_map(
-                    g, display_style, mechanism=mechanism, alpha = self.alpha,
+                    g,
+                    display_style,
+                    mechanism=mechanism,
+                    alpha=self.alpha,
                 )
-            elif   self.renderer== "mpl":
+            elif self.renderer == "mpl":
                 g = self.view.draw_mpl_graph(fax=fax)
-            elif   self.renderer== "mayavi":
-                g = self.view.draw_mayavi_graph(
-                    color=self.color, label=label, flags=flags
-                )
+            elif self.renderer == "mayavi":
+                g = self.view.draw_mayavi_graph(color=self.color, label=label, flags=flags)
             else:
                 raise ValueError("Can only render graph in pyqtgraph, matplotlib and mayavi ")
 
         elif display_style == "cylinders":
-            if   self.renderer== "pyqtgraph":
+            if self.renderer == "pyqtgraph":
                 g = self.view.draw_cylinders()
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
 
-            elif   self.renderer=="mpl":
+            elif self.renderer == "mpl":
                 g = self.view.draw_mpl_cylinders(fax=fax, colors=section_colors)
                 # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
 
-            elif   self.renderer == "vispy":
-                g = self.view.draw_vispy(mechanism=mechanism, color=section_colors, state=self.state, title=title)
-                
-            elif   self.renderer== "mayavi":
+            elif self.renderer == "vispy":
+                g = self.view.draw_vispy(
+                    mechanism=mechanism, color=section_colors, state=self.state, title=title
+                )
+
+            elif self.renderer == "mayavi":
                 g = self.view.draw_mayavi_cylinders(
-                    color=section_colors, label=label, flags=flags,
+                    color=section_colors,
+                    label=label,
+                    flags=flags,
                     mechanism=mechanism,
                 )
                 self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
                 g.g.render()
             else:
-                raise ValueError("Can only render cylinders in pyqtgraph, matplotlib, vispy and mayavi ")
+                raise ValueError(
+                    "Can only render cylinders in pyqtgraph, matplotlib, vispy and mayavi "
+                )
 
- 
         elif display_mode == "vm":
 
             # Render animation of membrane voltage
@@ -243,9 +265,10 @@ class Render(object):
             loopCount = 0
             nloop = 1
 
-        if   self.renderer== "pyqtgraph":
+        if self.renderer == "pyqtgraph":
 
             import pyqtgraph as pg
+
             if output_file is not None:
                 print(f"Saving to outputfile: {str(output_file):s}")
                 # print(dir(self.view))
@@ -253,20 +276,21 @@ class Render(object):
                 img.save(output_file)
             elif sys.flags.interactive == 0:
                 pg.Qt.QtGui.QGuiApplication.exec()
-                
-        if self.renderer== "mayavi":
 
-            print('outputfile: ', output_file)
+        if self.renderer == "mayavi":
+
+            print("outputfile: ", output_file)
             if output_file is not None:
                 print(f"Saving mayvi rendering to outputfile: {str(output_file):s}")
                 # print(dir(self.view))
                 f = mlab.gcf()
-                mlab.savefig(output_file, figure=f, magnification=1.0) # size=(1000, 1000))
+                mlab.savefig(output_file, figure=f, magnification=1.0)  # size=(1000, 1000))
             else:
                 mlab.show()
-                            
-        if self.renderer== "mpl":
+
+        if self.renderer == "mpl":
             import matplotlib.pyplot as mpl
+
             mpl.show()
 
     def color_map(
@@ -274,18 +298,18 @@ class Render(object):
         g: object,
         display_mode: str,
         mechanism: Union[str, None] = None,
-        colors:dict=section_colors,
+        colors: dict = section_colors,
         alpha: float = 1.0,
     ) -> None:
         print("set color map")
         assert g is not None
 
         if display_mode == "sec-type":
-            print('sec type with alpha: ', alpha,   self.renderer)
-            if   self.renderer == 'pyqtgraph':
+            print("sec type with alpha: ", alpha, self.renderer)
+            if self.renderer == "pyqtgraph":
                 g.set_group_colors(colors, alpha=alpha)
-            elif   self.renderer == 'mayavi':
-                print('set sectype colors mayavi')
+            elif self.renderer == "mayavi":
+                print("set sectype colors mayavi")
                 # g.set_group_colors(colors, alpha=alpha)
             # self.setBackgroundColor('grey')
         elif display_mode == "mechanism" and (
@@ -345,9 +369,7 @@ class Render(object):
             for i in range(start, stop):
                 self.set_index(i)
                 pg.Qt.QtGui.QApplication.processEvents()
-                self.view.save_frame(
-                    os.path.join(os.getcwd(), "Video/video_%04d.png" % (i))
-                )
+                self.view.save_frame(os.path.join(os.getcwd(), "Video/video_%04d.png" % (i)))
                 print("%d / %d" % (i, stop))
         finally:
             self.view.save_video()
@@ -381,7 +403,7 @@ def main() -> None:
         dest="display_renderer",
         action="store",
         default="pyqtgraph",
-        choices=["pyqtgraph", "vispy",  "mpl"], # vispy but not really implemented yet
+        choices=["pyqtgraph", "vispy", "mpl"],  # vispy but not really implemented yet
         help="Select thedisplay_renderer(default pyqtgraph)",
     )
 
@@ -393,14 +415,19 @@ def main() -> None:
         choices=["swc", "sbem", "sbem2"],
         help="Choose section mapping",
     )
-    
+
     parser.add_argument(
         "--style",
         "-s",
         dest="display_style",
         action="store",
         default="cylinders",
-        choices=["cylinders", "graph", "volume", "surface",],
+        choices=[
+            "cylinders",
+            "graph",
+            "volume",
+            "surface",
+        ],
         help="Select the display mode (default: cylinders)",
     )
 
@@ -422,7 +449,15 @@ def main() -> None:
         default="None",
         help="Select the mechanism density to display (default: None)",
     )
-   
+
+    parser.add_argument(
+        "--center",
+        "-c",
+        dest="center",
+        action="store_true",
+        default=False,
+        help="Force first point to be (0,0,0) (default: False)",
+    )
     parser.add_argument(
         "--alpha",
         "-a",
@@ -435,12 +470,12 @@ def main() -> None:
     parser.add_argument(
         "-v",
         "--verify",
-        dest = "verify",
+        dest="verify",
         action="store_true",
         default=False,
         help="print hoc output from swc for verification",
     )
-    
+
     args = vars(parser.parse_args())
 
     hoc_file = None
@@ -460,7 +495,7 @@ def main() -> None:
         hoc_file = args["input_file"]
     elif args["input_file"].endswith(".swc"):
         hoc_file = args["input_file"]
-    elif args["input_file"] in ['select', 'file']:
+    elif args["input_file"] in ["select", "file"]:
         hoc_file = "select"
     else:
         error()
@@ -469,14 +504,14 @@ def main() -> None:
         hoc_file=hoc_file,
         display_style=args["display_style"],
         display_renderer=args["display_renderer"],
+        center=args["center"],
         display_mode=args["display_mode"],
         mechanism=args["mechanism"],
         alpha=args["alpha"],
         verify=args["verify"],
         sim_data=sim_data,
-        secmap=args["secmap"]
+        secmap=args["secmap"],
     )
-
 
 
 if __name__ == "__main__":
