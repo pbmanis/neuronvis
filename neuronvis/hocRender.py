@@ -94,6 +94,10 @@ section_colors = {
     "basal": "magenta",
     "Dendritic_Swelling": "ochre",
     "Dendritic_Hub": "neon red",
+    # granule cell
+    "primarydendrite": "ochre",
+    "preclaw": "powder blue",
+    "dendriticclaw": "neon red",
     # calyx specific
     "heminode": "green",
     "stalk": "yellow",
@@ -283,6 +287,7 @@ class Render(object):
             elif   self.renderer == 'mayavi':
                 print('set sectype colors mayavi')
                 # g.set_group_colors(colors, alpha=alpha)
+            # self.setBackgroundColor('grey')
         elif display_mode == "mechanism" and (
             mechanism != "None" or mechanism is not None
         ):
@@ -390,7 +395,7 @@ def main() -> None:
     )
     
     parser.add_argument(
-        "-style",
+        "--style",
         "-s",
         dest="display_style",
         action="store",

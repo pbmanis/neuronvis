@@ -54,6 +54,9 @@ swc_sectypes = {
     12: "dendrite",  # 'hub',
     # 13: 'proximal_dendrite',
     # 14: 'distal_dendrite',
+    18: "primarydendrite",
+    19: "preclaw",
+    20: "dendriticclaw",
 }
 
 # section types for SBEM data on bushy cells (additional definitions)
@@ -157,7 +160,10 @@ partsof = {
                 "Distal_Dendrite",
                 "Dendritic_Swelling",
                 "hub",
-                "Dendritic_Hub"],
+                "Dendritic_Hub",
+                "primarydendrite",
+                "preclaw",
+                "dendriticclaw"],
     "axon": ["Axon_Hillock", 
             "hillock",
             "Unmyelinated_Axon",
