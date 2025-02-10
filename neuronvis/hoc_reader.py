@@ -29,7 +29,7 @@ class HocReader(object):
         verify: bool = False,
     ) -> None:
         self.file_loaded = False
-        self.somaonly = somaonly
+        self.center = center
         print("HocReader reading file:", hoc)
         if isinstance(hoc, str) or isinstance(hoc, Path):  # only python 3 anymore
             success = 0
@@ -43,7 +43,7 @@ class HocReader(object):
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
             elif fullfile.suffix in [".swc"]:
-                s = swc_to_hoc.SWC(filename=fullfile, secmap=secmap, verify=verify)
+                s = swc_to_hoc.SWC(filename=fullfile, secmap=secmap, center=self.center, verify=verify)
                 hocl = s.write_hoc(None)
                 hocstr = ""
                 for i in range(len(hocl)):
@@ -232,8 +232,6 @@ class HocReader(object):
         self.sections = collections.OrderedDict()
         self.mechanisms = collections.OrderedDict()
         for i, sec in enumerate(self.h.allsec()):
-            # if self.somaonly and not sec.name().startswith('soma'):
-            #     continue
             self.sections[sec.name()] = sec
             self.sec_index[sec.name()] = i
             mechs = set()
@@ -294,13 +292,11 @@ class HocReader(object):
             raise Exception(
                 "Group name %s is already used (use overwrite=True)." % name
             )
-        if self.somaonly and name not in ["soma"]:
-            return
-        group = set()
+        group = [] # set()
         for sec in sections:
             if not isinstance(sec, str):
                 sec = sec.name()
-            group.add(sec)
+            group.append(sec) # group.add(sec)
         self.sec_groups[name] = group
 
     def get_section_group(self, name: str) -> Union[list, None]:
@@ -308,7 +304,7 @@ class HocReader(object):
         Return the set of section names in the group *name*.
         """
         if name in list(self.sec_groups.keys()):
-            return self.sec_groups[name]
+            return list(self.sec_groups[name])
         else:
             return None
 
