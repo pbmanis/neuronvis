@@ -170,7 +170,7 @@ class HocViewer(gl.GLViewWidget):
             # self.resize(figsize)
 
             self.setBackcolor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
-            self.win.setStyleSheet("{background-color: gray;}") 
+            self.win.setStyleSheet("{background-color: lightgray;}") 
             color = "w"
             self.show()
             self.setWindowTitle("hocViewer")

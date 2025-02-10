@@ -42,7 +42,9 @@ from pylibrary.tools import fileselector
 # (and without neuron garbage)
 from .hoc_reader import HocReader
 from .hoc_viewer import HocViewer
-from . import hoc_graphics
+import neuronvis.renderer_colormaps as rc
+section_colors = rc.section_colors
+
 
 # define all display_modes here.
 display_mode = {
@@ -67,74 +69,7 @@ display_renderers = {
 
 
 # Handle display_modes
-##########################################################
-# colors are from XKCD color list. Sorry folks.
-#
 
-section_colors = {
-    "axon": "green",  # in this dict, we handle multiple labels for the same structure.
-    "Axon_Initial_Segment": "cyan",
-    "initialsegment": "cyan",
-    "initseg": "cyan",
-    "ais": "cyan",
-    "hillock": "dark cyan",
-    "Axon_Hillock": "dark cyan",
-    "myelinatedaxon": "white",
-    "Myelinated_Axon": "white",
-    "unmyelinatedaxon": "light cyan",
-    "Unmyelinated_Axon": "light cyan",
-    "soma": "blue",
-    "somatic": "blue",
-    "Soma": "blue",
-    "apic": "yellow",
-    "apical": "yellow",
-    "Distal_Dendrite": "yellow",
-    "dend": "magenta",
-    "dendrite": "magenta",
-    "Proximal_Dendrite": "dandelion",  # "wintergreen",
-    "basal": "magenta",
-    "basal_dendrite": "magenta",
-    "Dendritic_Swelling": "ochre",
-    "Dendritic_Hub": "neon red",
-    # granule cell
-    "primarydendrite": "ochre",
-    "preclaw": "powder blue",
-    "dendriticclaw": "neon red",
-    # calyx specific
-    "heminode": "green",
-    "stalk": "yellow",
-    "branch": "blue",
-    "neck": "brown",
-    "swelling": "magenta",
-    "tip": "powder blue",
-    "parentaxon": "orange",
-    "synapse": "black",
-    # other (cortex dendrites)
-    "dend1_*": "magenta",
-    "dend2_*": "yellow",
-    "dend3_*": "dandelion",
-    "dend4_*": "orche",
-    "apic": "dandelion",
-    "dend_1*": "red",
-    "dend_2*": "orange",
-    "dend_3*": "yellow",
-    "dend_4*": "green",
-    "dend_5*": "blue",
-    "dend_6*": "indigo",
-    "dend_7*": "violet",
-    "dendritic_0": "red",
-    "dendritic_5": "yellow",
-    "dendritic_7": "orange",
-    "custom": "white",
-    "unspecified neurites": "gold",
-    "preclaw": "powder blue",
-    "dendriticclaw": "neon red",
-    "type_8": "red",
-    "type_13": "orange",
-    "type_14": "yellow",
-    "type_15": "green",
-
-}
 
 
 class Render(object):
@@ -408,9 +343,9 @@ def main() -> None:
     parser.add_argument(
         "--secmap",
         type=str,
-        default="swc",
+        default="sbem3",
         dest="secmap",
-        choices=["swc", "sbem", "sbem2"],
+        choices=["swc", "sbem", "sbem2", "sbem3"],
         help="Choose section mapping",
     )
 

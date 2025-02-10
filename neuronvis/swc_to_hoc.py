@@ -6,7 +6,8 @@ import datetime
 import argparse
 import re
 
-
+import neuronvis.swc_sectypes as swc_sectypes
+import neuronvis.renderer_colormaps as colormaps
 """
 SWC File format from CNIC:
 
@@ -37,147 +38,19 @@ Python 3 version only 3-27-2019 pbm
 Handles Singleton "sections" in swc file by inserting 
 the last parent segment information.
 
+Note: Multiple sectypes defined in sec_types.py now - there are several 
+mappings. 
+
+
 """
 
-# standard SWC types:
-swc_sectypes = {
-    #  0: 'undefined',
-    1: "soma",
-    2: "axon",
-    3: "basal_dendrite",
-    4: "apical_dendrite",
-    5: "custom",  # (user-defined preferences)
-    6: "unspecified_neurites",
-    7: "glia_processes",  # who knows why this is in here…
-    10: "hillock",
-    11: "unmyelinatedaxon",
-    12: "dendrite",  # 'hub',
-    # 13: 'proximal_dendrite',
-    # 14: 'distal_dendrite',
-    18: "primarydendrite",
-    19: "preclaw",
-    20: "dendriticclaw",
-}
 
-# section types for SBEM data on bushy cells (additional definitions)
-sbem_sectypes = {
-    # new swc mapping
-    0: "Undefined",
-    1: "soma",
-    2: "Myelinated_Axon",
-    3: "Basal_Dendrite",
-    4: "Apical_Dendrite",
-    5: "Custom",
-    6: "Unspecified_Neurites",
-    7: "Glia_Processes",
-    8: "Blank",
-    9: "Blank",
-    10: "Axon_Hillock",
-    11: "Unmyelinated_Axon",
-    12: "Dendritic_Hub",
-    13: "Proximal_Dendrite",
-    14: "Distal_Dendrite",
-    15: "Axon_Initial_Segment",
-    16: "Axon_Heminode",
-    17: "Axon_Node",
-    18: "Dendritic_Swelling",
-}
 
-# section types for SBEM data on bushy cells (additional definitions)
-# This table is for swcs from Syglassfrom May 2021 (who changed it?)
-sbem2_sectypes = {
-    #new swc mapping
-    0: 'Undefined',
-    1: 'Soma',
-    2: 'Myelinated_Axon',
-    3: 'Basal_Dendrite',
-    4: 'Apical_Dendrite',
-    5: 'Custom',
-    6: 'Unspecified_Neurites',
-    7: 'Glia_Processe',
-    8: 'Blank',
-    9: 'Blank',
-    10: 'Axon_Hillock',
-    11: 'Dendritic_Swelling',
-    12: 'Dendritic_Hub',
-    13: 'Proximal_Dendrite',
-    14: 'Distal_Dendrite',
-    15: 'Axon_Initial_Segment',
-    16: 'Axon_Heminode',
-    17: 'Axon_Node',
-}
-
-# crenaming of cell parts to match cnmodel data tables (temporary)
-# renaming = {
-#     "basal_dendrite": "dendrite",
-#     "Basal_Dendrite": "dendrite",
-#     "Apical_Dendrite": "dendrite",
-#     "apical_dendrite": "dendrite",
-#     "proximal_dendrite": "dendrite",
-#     "Proximal_Dendrite": "dendrite",
-#     "distal_dendrite": "dendrite",
-#     "Distal_Dendrite": "dendrite",
-#     "Dendritic_Swelling": "dendrite",
-#     "hub": "dendrite",
-#     "Dendritic_Hub": "dendrite",
-#     "Axon_Hillock": "hillock",
-#     "Unmyelinated_Axon": "unmyelinatedaxon",
-#     "Axon_Initial_Segment": "initialsegment",
-#     "Axon_Heminode": "heminode",
-#     "Axon_Node": "node",
-# }
-
-# when pruning, we remove any section type that is a 
-# part of either dendrite or axon.
-idsofpart_swc = {
-    "dendrite": [3, 4, 12],
-    "axon:": [2, 10, 11],
-    "soma": [1],
-    "distal": [],
-}
-idsofpart_sbem = {
-    'dendrite': [3, 4, 12, 13, 14, 18],
-    'distal': [12, 14, 18],
-    'axon': [2, 10, 11, 15, 16, 17],
-    'soma': [1],
-}
-idsofpart_sbem2 = {  # for sbem2 map (what a pain! )
-    'dendrite': [3, 4, 12, 13, 14, 11, 18],
-    'distal': [12, 14, 18],
-    'axon': [2, 10, 15, 16, 17],
-    'soma': [1],
-}
-
-partsof = {
-    "dendrite": ["dendrite",
-                "basal_dendrite"
-                "Basal_Dendrite",
-                "Apical_Dendrite", 
-                "apical_dendrite", 
-                "proximal_dendrite",
-                "Proximal_Dendrite"
-                "distal_dendrite",
-                "Distal_Dendrite",
-                "Dendritic_Swelling",
-                "hub",
-                "Dendritic_Hub",
-                "primarydendrite",
-                "preclaw",
-                "dendriticclaw"],
-    "axon": ["Axon_Hillock", 
-            "hillock",
-            "Unmyelinated_Axon",
-            "unmyelinatedaxon",
-            "Axon_Initial_Segment",
-            "initialsegment",
-            "Axon_Heminode", "heminode",
-            "Axon_Node", "node",]
-}
 
 class SWC(object):
     """
     Encapsulates a morphology tree as defined by the SWC standard.
-    
+
     Parameters
     ----------
     filename : str or None
@@ -205,11 +78,10 @@ class SWC(object):
         scales: Union[dict, None] = None,
         center: bool = False,
         verify: bool = False,
-        args: object = None
+        args: object = None,
     ) -> None:
         self._dtype = [
             ("id", int),
-            
             ("type", int),
             ("x", float),
             ("y", float),
@@ -226,7 +98,7 @@ class SWC(object):
         self.prunedendrite = False
         self.prunedistal = False
         self.topology = False
-        self.center = False
+        self.center = center
         self.verify = verify
         if args is not None:
             self.center = args.center
@@ -235,15 +107,18 @@ class SWC(object):
             self.prunedistal = args.prunedistal
             self.topology = args.topology
         if secmap == "swc":
-            self.sectypes = swc_sectypes
-            self.idsofpart = idsofpart_swc
+            self.sectypes = swc_sectypes.swc_sectypes
+            self.idsofpart = swc_sectypes.idsofpart_swc
         elif secmap == "sbem":
-            self.sectypes = sbem_sectypes
-            self.idsofpart = idsofpart_sbem
+            self.sectypes = swc_sectypes.sbem_sectypes
+            self.idsofpart = swc_sectypes.idsofpart_sbem
         elif secmap == "sbem2":
-            self.sectypes = sbem2_sectypes
-            self.idsofpart = idsofpart_sbem2
-            
+            self.sectypes = swc_sectypes.sbem2_sectypes
+            self.idsofpart = swc_sectypes.idsofpart_sbem2
+        elif secmap == "sbem3":
+            self.sectypes = swc_sectypes.sbem3_sectypes
+            self.idsofpart = swc_sectypes.idsofpart_sbem3
+
         else:
             raise ValueError("SWC number map type is not recognized: %s" % secmap)
 
@@ -259,15 +134,16 @@ class SWC(object):
             raise TypeError("Must initialize with filename or data array.")
 
         self.sort()
-        self.set_parent_section('soma')
+        self.set_parent_section("soma")
 
     def load(self, filename: Union[Path, str, None] = None) -> None:
         assert filename is not None
-        self.filename = Path(filename).with_suffix('.swc')
+        self.filename = Path(filename).with_suffix(".swc")
         print(f"Loading: {str(self.filename):s}")
         self.data = np.loadtxt(self.filename, dtype=self._dtype)
 
         if self.scales is not None:
+            print("Rescaling")
             self.rescale(
                 x=self.scales["x"],
                 y=self.scales["y"],
@@ -275,12 +151,14 @@ class SWC(object):
                 r=self.scales["r"],
             )
         if self.center:
+            print("Centering on first section in list")
             self.translate(
                 x=-self.data["x"][0], # .min(),
                 y=-self.data["y"][0], # .min(),
                 z=-self.data["z"][0], # .min(),
                 r=0.0,
             )
+
     def copy(self) -> object:
         return SWC(data=self.data.copy(), types=self.sectypes)
 
@@ -296,7 +174,7 @@ class SWC(object):
         self.data = self.data[indexes]
         self._id_lookup = None
         self._sections = None
-        print('sorted')
+        print("sorted")
 
     def branch(self, id: int) -> list:
         """
@@ -306,7 +184,7 @@ class SWC(object):
         for ch in self.children(id):
             branch.extend(self.branch(ch))
         return branch
-    
+
     def children(self, ident: int) -> list:
         """
         Return a list of all children of the node *id*.
@@ -341,12 +219,11 @@ class SWC(object):
         soma_sec = None
         for r in self.data:
             # print('type: ', r['type'])
-            if r['type'] in self.idsofpart["soma"]:
+            if r["type"] in self.idsofpart["soma"]:
                 soma_sec = r.copy()
         if soma_sec is not None:
-            self.reparent(ident=soma_sec['id']
-)
-            
+            self.reparent(ident=soma_sec["id"])
+
     def reparent(self, ident: int) -> None:
         """
         Rearrange tree to make *ident* the new root parent.
@@ -391,32 +268,29 @@ class SWC(object):
                 else:
                     seen.add(p)
                     endpoints.remove(p)
-                    if r['type'] == 10:
+                    if r["type"] == 10:
                         print(f"removed {r['id']:d} from endpoint: ")
 
             # build lists of unbranched node chains
             lasttype = self.data["type"][0]
             lastid = self.data["id"]
-                
+
             for r in self.data:
-                if self.prunedendrite and r["type"] in self.idsofpart['dendrite']:
+                if self.prunedendrite and r["type"] in self.idsofpart["dendrite"]:
                     continue
-                if self.prunedistal and r["type"] in self.idsofpart['distal']:
+                if self.prunedistal and r["type"] in self.idsofpart["distal"]:
                     continue
-                if self.pruneaxon and r["type"] in self.idsofpart['axon']:
+                if self.pruneaxon and r["type"] in self.idsofpart["axon"]:
                     continue
                 sec.append(r["id"])
-                if (
-                    r["id"] in branchpts
-                    or r["id"] in endpoints
-                    or r["type"] != lasttype
-                ):
-                    if r['type'] == 10:
+                if r["id"] in branchpts or r["id"] in endpoints or r["type"] != lasttype:
+                    if r["type"] == 10:
                         print("Got a hillock: ")
                         print("id = ", r["id"], " lastid: ", lastid)
                         print("Restarting type 10, because: in endpoint: ", r["id"] in endpoints)
                         print(" or in brancpts: ", r["id"] in branchpts)
                         print(" or not same as last type: ", r["type"], " lastype = ", lasttype)
+                        raise ValueError("Hillock in section, r type = 10")
                         # continue
                     sections.append(sec)
                     sec = []
@@ -428,7 +302,7 @@ class SWC(object):
 
     def connect(self, parent_id: int, swc: object) -> None:
         """
-        Combine this tree with another by attaching the root of *swc* as a 
+        Combine this tree with another by attaching the root of *swc* as a
         child of *parent_id*.
         """
         data = swc.data.copy()
@@ -488,33 +362,29 @@ class SWC(object):
             sec_id = len(sec_ids)
             sec_ids[endpt] = sec_id
             # print(i, sec, endpt, sec_id)
-        #            print(sects)
-           # add section to list
+            #            print(sects)
+            # add section to list
             hoc.append(f"access sections[{sec_id:d}]")
             typ = self[sec[0]]["type"]
             hoc.append(f"{sectypes[typ]:s}.append()")
 
-           # connect section to parent
+            # connect section to parent
             p = self[sec[0]]["parent"]
             if p != -1:
-               # print(f"p: {str(p):s}, {sec_id:d}")
-               # print(self[sec[0]])
+                # print(f"p: {str(p):s}, {sec_id:d}")
+                # print(self[sec[0]])
                 # print(sec_id, sec_ids, p)
                 if p in sec_ids:
-                    hoc.append(
-                        f"connect sections[{sec_id:d}](0), sections[{sec_ids[p]:d}](1)"
-                        )
+                    hoc.append(f"connect sections[{sec_id:d}](0), sections[{sec_ids[p]:d}](1)")
 
-           # set up geometry for this section
+            # set up geometry for this section
             hoc.append("sections[%d] {" % sec_id)
             if len(sec) == 1:
                 if p != -1 and p in sec_ids:  # if a parent exists, then make this connections
-                    seg = sects[sec_ids[p]][
-                        -1
-                    ]  # get last segement in the parent section
+                    seg = sects[sec_ids[p]][-1]  # get last segement in the parent section
                     rec = self[seg]
                     if rec["r"] < 0.05:
-                        print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
+                        # print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
                         rec["r"] = 0.05
                     hoc.append(
                         f"  pt3dadd({rec['x']:f}, {rec['y']:f}, {rec['z']:f}, {rec['r']*2:f})  // seg={seg:d} Singleton repair: to section[{sec_ids[p]:d}]"
@@ -522,7 +392,7 @@ class SWC(object):
             for seg in sects[sec_id]:
                 rec = self[seg]
                 if rec["r"] < 0.05:
-                    print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
+                    # print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
                     rec["r"] = 0.05
                 hoc.append(
                     f"  pt3dadd({rec['x']:f}, {rec['y']:f}, {rec['z']:f}, {rec['r']*2:f})   // seg={seg:d}"
@@ -533,9 +403,8 @@ class SWC(object):
         if verify:
             print(hoc)
         return hoc
-                  
-        
-    def write_hoc(self, filename: Union[Path, str, None] = None, verify:bool=False) -> None:
+
+    def write_hoc(self, filename: Union[Path, str, None] = None, verify: bool = False) -> None:
         """
         Write data to a HOC file.
         Each node type is written to a separate section list.
@@ -546,11 +415,9 @@ class SWC(object):
             with open(filename, "w") as fh:
                 fh.write("\n".join(hoc))
             print(f"Wrote hoc file: {str(filename):s}")
-        # now generate reverse section map for reference
+            # now generate reverse section map for reference
             self.make_segmap(filename)
         return hoc
-
-
 
     @property
     def root(self) -> int:
@@ -559,7 +426,6 @@ class SWC(object):
         """
         ind = np.argwhere(self.data["parent"] == -1)[0, 0]
         return self.data[ind]["id"]
-
 
     def path(self, node) -> list:
         path = [node]
@@ -588,6 +454,7 @@ class SWC(object):
             )
         else:
             secstr = str(tuple(sec))
+        return secstr
 
     def show_topology(self) -> None:
         """
@@ -618,25 +485,23 @@ class SWC(object):
             typ = self.sectypes[self[sec[0]]["type"]]
             secstr = self.shorten_secname(sec)
 
-            print(
-                "%ssections[%d] type=%s parent=%d %s" % (this_indent, i, typ, p, secstr)
-            )
+            print("%ssections[%d] type=%s parent=%d %s" % (this_indent, i, typ, p, secstr))
 
-    def make_segmap(self, filename:Path, stronly=False) -> None:
+    def make_segmap(self, filename: Path, stronly=False) -> None:
         """
         Create a file that helps map hoc sections back to the original swc segments
         (from hoc_swc_sectionmap.py in vcnmodel)
 
         This requires a "hocx" file, which has the extended information about which swc
-        segment is associated with each hoc pt3dadd call. 
- 
+        segment is associated with each hoc pt3dadd call.
+
         The result is a text file that looks like:
-        hocsectionname : 1,3,5,7,9   
+        hocsectionname : 1,3,5,7,9
         where the numbers are the swc elements.
 
         Parameters
         ----------
-        
+
         fn : str or Path
             filename of the hoc file to use for input
         """
@@ -686,7 +551,6 @@ class SWC(object):
         print("Wrote hoc->swc segmap to: ", fout)
 
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Convert SWC file to HOC file for NEURON",
@@ -710,12 +574,12 @@ def main() -> None:
     parser.add_argument(
         "-v",
         "--verify",
-        dest = "verify",
+        dest="verify",
         action="store_true",
         default=False,
         help="print hoc output from swc for verification",
     )
-    
+
     # parser.add_argument(
     #     "--somascale",
     #     type=float,
@@ -736,12 +600,12 @@ def main() -> None:
         "-s",
         "--secmap",
         type=str,
-        default="swc",
+        default="sbem3",
         dest="secmap",
-        choices=["swc", "sbem", "sbem2"],
+        choices=["swc", "sbem", "sbem2", "sbem3"],
         help="Choose section ampping",
     )
-    
+
     parser.add_argument(
         "-t",
         "--topology",
@@ -750,7 +614,7 @@ def main() -> None:
         default=False,
         help="Show topology (blocks output writing)",
     )
-    
+
     parser.add_argument(
         "--center",
         "-c",
@@ -781,7 +645,7 @@ def main() -> None:
         default=False,
         help="Prune all axon sections from the hoc output",
     )
-    
+
     parser.add_argument(
         "-R",
         action="store_true",
@@ -791,8 +655,8 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    fn = Path(args.filename).with_suffix('.swc')
-    scales = {"x": 1.0, "y": 1.0, "z": 1.0, "r": 1.0, "soma": 1.0, "dend":1.0}
+    fn = Path(args.filename).with_suffix(".swc")
+    scales = {"x": 1.0, "y": 1.0, "z": 1.0, "r": 1.0, "soma": 1.0, "dend": 1.0}
     if args.radiiscale != 1.0:
         scales["r"] = args.radiiscale
     # if args.somascale != 1.0:
@@ -802,15 +666,22 @@ def main() -> None:
 
     noseparatescale = True
     if fn.is_file():
-        s = SWC(filename=fn, secmap=args.secmap, scales=scales, center=args.center, verify=args.verify, args=args)
+        s = SWC(
+            filename=fn,
+            secmap=args.secmap,
+            scales=scales,
+            center=args.center,
+            verify=args.verify,
+            args=args,
+        )
         fname = args.filename
         s.show_topology()
         if noseparatescale or not (args.somascale or args.dendscale):
             s.write_hoc(Path(fname).with_suffix(".hocx"), args.verify)
         else:
-            ffn = Path(
-                fname.stem,
-                '_s_{.3f:args.somascale}_d_{.3f:args.dendscale}').with_suffix(".hocx")
+            ffn = Path(fname.stem, "_s_{.3f:args.somascale}_d_{.3f:args.dendscale}").with_suffix(
+                ".hocx"
+            )
             s.write_hoc(ffn, args.verify)
     else:
         print(f'File "{str(fn):s}" was not found')

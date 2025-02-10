@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 import os
 
 # Use Semantic Versioning, http://semver.org/
-version_info = (0, 3, 2, '')
+version_info = (0, 5, 0, '')
 __version__ = '%d.%d.%d%s' % version_info
 
 
-setup(name='neuronvis',
+setup(name='neuronvis',fi
       version=__version__,
       description='Neuron Visualization module',
       url='http://github.com/pbmanis/neuronvis',

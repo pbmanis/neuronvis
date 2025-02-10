@@ -10,6 +10,8 @@ from matplotlib import pyplot as mpl
 from mpl_toolkits.mplot3d import axes3d
 import seaborn
 from . import mplcyl
+import neuronvis.renderer_colormaps as rc
+section_colors = rc.section_colors
 
 # from mayavi import mlab
 # from tvtk.api import tvtk
@@ -48,6 +50,7 @@ from pyqtgraph import opengl as gl
 from . import xkcd_colors
 
 Colors = xkcd_colors.get_colors()
+
 colorMap = list(Colors.keys())
 
 
@@ -257,27 +260,30 @@ class HocGraphic(object):
         Note names may be "mangled" nad have different formats, so we try to handle
         a few of those. 
         """
-        sec_colors = dict.fromkeys(self.h.sections)
+        sec_colors = dict.fromkeys(self.h.sections)  # initially empty.
         mechmax = 0.0
         mechmin = 1.0
-        cmap = pg.ColorMap(
-            [0, 0.25, 0.6, 1.0], [(0, 0, 0), (1, 0, 0), (1, 1, 0), (1, 1, 1)]
-        )
         # color sections for each "group" or identified cell part
+        # print("colors: ", colors.items())
+
+
         for group_name, color in colors.items():
             sections = self.h.get_section_group(group_name)
-            
+            print("group name, sections: ", group_name, sections)
             if sections is None:
                 continue
+
             if isinstance(color, str):
-                sec_color = Colors[color]
+                sec_color = section_colors[group_name] # Colors[group_name] # color]
             else:
                 sec_color = color
 
             for (
                 sec_name
             ) in sections:  # set base color value; if using mechanism, then set gbar
-                sec_colors[sec_name] = sec_color.copy()
+                print("sec_name: ", sec_name, group_name, sec_color)
+
+                sec_colors[sec_name] = Colors[sec_color] # .copy()
                 if mechanism not in [None, "None"]:
                     sec_colors[sec_name] = [1, 0, 0, 1]
                     gbar = self.h.get_density(self.h.sections[sec_name], mechanism)
@@ -286,11 +292,14 @@ class HocGraphic(object):
                     sec_colors[sec_name][
                         3
                     ] = gbar  # use the alpha channel to set the color
+        # print("sec_colors: ", sec_colors)
+        # exit()
         # scale the alpha channel according to the mechanism
         if mechanism not in [None, "None"] and mechmax > 0.0:
             done = []
             for group_name, color in colors.items():
                 sections = self.h.get_section_group(group_name)
+                print("group: ", group_name, "sections: ", sections)
                 if sections is None:
                     continue
                 # rgb = sec_colors[c][:3]/mechmax # cmap.map(sec_colors[c][3] / mechmax, "float")
@@ -546,7 +555,7 @@ class mayavi_Cylinders(object):
             for group_name in secs:
                 scalars[group_name] = mechmax[group_name] / (1.2 * maxg)
 
-        print(scalars)
+        print("mayavi cylinders: ", scalars)
 
         XC = []
         YC = []
@@ -868,6 +877,7 @@ class mpl_Cylinders(mplGraphic):
         # print('set group colors')
         dsecs = []
         for group_name, color in colors.items():
+            print("group name, color: ", group_name, color)
             sections = self.h.get_section_group(group_name)
             if sections is None:
                 continue
@@ -875,7 +885,7 @@ class mpl_Cylinders(mplGraphic):
                 if isinstance(color, str):
                     color = Colors[color]
                 index = self.h.sec_index[sec_name]
-                # print(index, color)
+                print("set_group_colors: ", sec_name, index, color)
                 if mechanism is None:
                     sec_colors[index] = color
                 else:
@@ -888,7 +898,7 @@ class mpl_Cylinders(mplGraphic):
                     #      dsecs.append(group_name)
                     # if alpha is not None:
                     sec_colors[index, 3] = alpha
-                    print("  MPL: set group colors alpha: ", alpha)
+                    # print("  MPL: set group colors alpha: ", alpha)
         # print (mechmax)
         # print('sec colors: ', sec_colors)
         mechmax = np.max(sec_colors[:, 3])
@@ -1245,8 +1255,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         import colorsys
         HSV_tuples = [(x*1.0/nsec, 0.6, 0.6) for x in range(nsec)]
         RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
-        # for i, s in enumerate(self.section_colors):
-        #     self.section_colors[s] = [RGB_tuples[i][0], RGB_tuples[i][1],RGB_tuples[i][2], 1]
+        for i, s in enumerate(self.section_colors):
+            self.section_colors[s] = [RGB_tuples[i][0], RGB_tuples[i][1],RGB_tuples[i][2], 1]
         # slist = [  # debugging
         #     [1, 0, 0, 1],
         #     [1, 1, 0, 1],
@@ -1257,7 +1267,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         #     ]
         # for i, s in enumerate(self.section_colors):
         #     j = i % 3 #len(slist)
-            # self.section_colors[s] = slist[j]
+        #     self.section_colors[s] = slist[j]
         secs_built = []
         self.nsec = 0
         self.level = 0
@@ -1282,6 +1292,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                 self.nsec += 1
                 # indent = ' '*self.level
                 self.add_to_current_tube(sec, range(sec.n3d()))
+                col = self.get_section_color(sec, self.section_colors)
                 if len(sec.children()) == 0:
                     self.save_current_tube()
                 else:
@@ -1392,7 +1403,17 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         """
         self.pointsxyz.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
         self.radii.append(sec.diam3d(i) / 2.0)
-        self.colors.append(self.section_colors[str(sec)])
+        secname = str(sec)
+        sec_color = self.get_section_color(sec, self.section_colors)
+
+        if self.section_colors[secname] is None:
+            print("sec: ", secname, " not in section colors")
+            raise ValueError(f"Section {secname} not in section colors dictionary")
+            self.colors.append([0.5, 0.5, 0.5, 1])
+        else:
+            # print("sec: ", sec, " in section colors")
+            self.colors.append(self.section_colors[secname])
+            # self.colors.append(sec_color)
         self.vertex_colors.append([self.colors[-1]] * self.ntpts)
         self.tube_names.append(str(sec))
         self.tube_sections.append(sec)
@@ -1410,6 +1431,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         """
         Finish off the current tube and save it in main dictionary lists
         """
+
         colors = np.array(self.colors)
         vertex_colors = np.array(self.vertex_colors)
         vertex_colors = np.reshape(
@@ -1477,14 +1499,14 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         state = self.view.camera.get_state()
         if state != self.last_state:
             self.last_state = state
-            print(state)
+            # print("timer event state: ", state)
 
     def get_section_color(
         self, section, colors,
     ):
         sec_color = (0.5, 0.5, 0.5, 1)  # default color
-        sname = section.name
-        print("sname", sname)
+        sname = section.name()
+        print("get section color: section.name", sname)
         return sec_color
 
     """
