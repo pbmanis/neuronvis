@@ -247,9 +247,11 @@ class Render(object):
                 print("set sectype colors mayavi")
                 # g.set_group_colors(colors, alpha=alpha)
             # self.setBackgroundColor('grey')
-        elif display_mode == "mechanism" and (mechanism != "None" or mechanism is not None):
-            print("Setting color map by mechanism: ", mechanism)
-            if self.renderer == "pyqtgraph":
+        elif display_mode == "mechanism" and (
+            mechanism != "None" or mechanism is not None
+        ):
+            print('Setting color map by mechanism: ', mechanism)
+            if   self.renderer == 'pyqtgraph':
                 g.set_group_colors(colors, mechanism=mechanism)
 
     def vm_to_color(self, v: np.ndarray) -> np.ndarray:
