@@ -6,7 +6,7 @@ version_info = (0, 5, 0, '')
 __version__ = '%d.%d.%d%s' % version_info
 
 
-setup(name='neuronvis',fi
+setup(name='neuronvis',
       version=__version__,
       description='Neuron Visualization module',
       url='http://github.com/pbmanis/neuronvis',
