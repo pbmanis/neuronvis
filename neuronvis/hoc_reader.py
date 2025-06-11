@@ -25,12 +25,13 @@ class HocReader(object):
         hoc: object,
         somaonly: bool = False,
         center: bool = False,
-        secmap: str = "swc",
+        section_map: str = "swc",
         verify: bool = False,
     ) -> None:
         self.file_loaded = False
         self.center = center
         print("HocReader reading file:", hoc)
+        print("centering: ", self.center)
         if isinstance(hoc, str) or isinstance(hoc, Path):  # only python 3 anymore
             success = 0
             fullfile = Path(os.getcwd(), hoc)
@@ -43,7 +44,7 @@ class HocReader(object):
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
             elif fullfile.suffix in [".swc"]:
-                s = swc_to_hoc.SWC(filename=fullfile, secmap=secmap, center=self.center, verify=verify)
+                s = swc_to_hoc.SWC(filename=fullfile, section_map=section_map, center=self.center, verify=verify)
                 hocl = s.write_hoc(None)
                 hocstr = ""
                 for i in range(len(hocl)):

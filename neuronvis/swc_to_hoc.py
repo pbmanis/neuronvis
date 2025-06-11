@@ -58,7 +58,7 @@ class SWC(object):
     types : dict or None
         A dictionary mapping {type_id: type_name} that describes the type IDs
         in the swc data (second column).
-    secmap  str (default: 'swc')
+    section_map  str (default: 'swc')
         Which section mapping to use. swc is the standard swc mapping,
         sbem is an extended mapping for VCN serial blockface data.
     data : ndarray or None
@@ -73,7 +73,7 @@ class SWC(object):
         self,
         filename: Union[Path, str, None] = None,
         types: Union[str, None] = None,
-        secmap: str = "swc",
+        section_map: str = "swc",
         data: Union[np.ndarray, None] = None,
         scales: Union[dict, None] = None,
         center: bool = False,
@@ -100,27 +100,28 @@ class SWC(object):
         self.topology = False
         self.center = center
         self.verify = verify
+        self.centerpos = None
         if args is not None:
             self.center = args.center
             self.pruneaxon = args.pruneaxon
             self.prunedendrite = args.prunedendrite
             self.prunedistal = args.prunedistal
             self.topology = args.topology
-        if secmap == "swc":
-            self.sectypes = swc_sectypes.swc_sectypes
-            self.idsofpart = swc_sectypes.idsofpart_swc
-        elif secmap == "sbem":
-            self.sectypes = swc_sectypes.sbem_sectypes
-            self.idsofpart = swc_sectypes.idsofpart_sbem
-        elif secmap == "sbem2":
-            self.sectypes = swc_sectypes.sbem2_sectypes
-            self.idsofpart = swc_sectypes.idsofpart_sbem2
-        elif secmap == "sbem3":
-            self.sectypes = swc_sectypes.sbem3_sectypes
-            self.idsofpart = swc_sectypes.idsofpart_sbem3
-
-        else:
-            raise ValueError("SWC number map type is not recognized: %s" % secmap)
+        match section_map:
+            case "swc":
+                self.sectypes = swc_sectypes.swc_sectypes
+                self.idsofpart = swc_sectypes.idsofpart_swc
+            case "sbem":
+                self.sectypes = swc_sectypes.sbem_sectypes
+                self.idsofpart = swc_sectypes.idsofpart_sbem
+            case "sbem2":
+                self.sectypes = swc_sectypes.sbem2_sectypes
+                self.idsofpart = swc_sectypes.idsofpart_sbem2
+            case "sbem3":
+                self.sectypes = swc_sectypes.sbem3_sectypes
+                self.idsofpart = swc_sectypes.idsofpart_sbem3
+            case _:
+                raise ValueError("SWC number map type is not recognized: %s" % section_map)
 
         if types is not None:  # add-on or overwrite types to dictionary
             self.sectypes.update(types)
@@ -158,6 +159,9 @@ class SWC(object):
                 z=-self.data["z"][0], # .min(),
                 r=0.0,
             )
+            self.centerpos = {'x': self.data["x"][0],
+                              'y': self.data["y"][0],
+                              'z': self.data["z"][0]}
 
     def copy(self) -> object:
         return SWC(data=self.data.copy(), types=self.sectypes)
@@ -601,7 +605,7 @@ def main() -> None:
         "--secmap",
         type=str,
         default="sbem3",
-        dest="secmap",
+        dest="section_map",
         choices=["swc", "sbem", "sbem2", "sbem3"],
         help="Choose section ampping",
     )
@@ -668,7 +672,7 @@ def main() -> None:
     if fn.is_file():
         s = SWC(
             filename=fn,
-            secmap=args.secmap,
+            sectio_map=args.section_map,
             scales=scales,
             center=args.center,
             verify=args.verify,

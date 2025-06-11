@@ -8,7 +8,7 @@
 
 
 section_colors = {
-    "Undefined": "white",
+    "Undefined": "black",
 
     "axon": "green",  # in this dict, we handle multiple labels for the same structure.
 
@@ -19,49 +19,49 @@ section_colors = {
     "initseg": "cyan",
     "ais": "cyan",
 
-    "hillock": "dark cyan",
-    "Axon_Hillock": "dark cyan",
-    "Axon_hillock": "dark cyan",
+    "hillock": "red",
+    "Axon_Hillock": "red",
+    "Axon_hillock": "red",
     
-    "myelinatedaxon": "beige",
-    "Myelinated_Axon": "beige",
-    "Axon_myelinated_segment": "beige",
-    "Axon_node": "red",
+    "myelinatedaxon": "dark red",
+    "Myelinated_Axon": "dark red",
+    "Axon_myelinated_segment": "dark red",
+    "Axon_node": "light blue",
     "Axon_heminode": "light blue",
     "unmyelinatedaxon": "light cyan",
     "Unmyelinated_Axon": "light cyan",
     "Axon_en_passant_synapse": "blue green",
-    
-    "soma": "light green",
-    "Soma": "light green",
-    "somatic": "light green",
+
+    "soma": "dark grey",
+    "Soma": "dark grey",
+    "somatic": "dark grey",
     "Soma_spine": "baby blue",
 
 # Dendrites
-    "apic": "yellow",
-    "apical": "yellow",
-    "Dendrite_apical": "puke green",
-    "Distal_Dendrite": "puke green",
+    "apic": "ochre",
+    "apical": "ochre",
+    "Dendrite_apical": "ochre",
+    "Distal_Dendrite": "ochre",
     "Dendrite_distal": "ochre",
-    "dend": "yellow",
-    "dendrite": "yellow",
-    "Proximal_Dendrite": "dandelion",
-    "Dendrite_proximal": "dandelion",
+    "dend": "grey",
+    "dendrite": "grey",
+    "Proximal_Dendrite": "dark blue",
+    "Dendrite_proximal": "dark blue",
     "basal": "magenta",
     "basal_dendrite": "magenta",
     "Dendrite_basal": "magenta",
     "Dendrite_spine": "red",
 # parts of dendrites
-    "Dendrite_swelling": "ochre",
-    "Dendritic_Swelling": "ochre",
+    "Dendrite_swelling": "yellow",
+    "Dendritic_Swelling": "yellow",
     "Dendritic_Hub": "neon red",
     "Dendrite_hub": "neon red",  # "wintergreen",
-    "Dendrite_undefined_1": "white",
-    "Dendrite_undefined_2": "white",
-    "Dendrite_undefined_3": "white",
+    "Dendrite_undefined_1": "darkgrey",
+    "Dendrite_undefined_2": "darkgrey",
+    "Dendrite_undefined_3": "darkgrey",
     
     # granule cell
-    "primarydendrite": "ochre",
+    "primarydendrite": "dark blue",
     "Dendrite_preclaw": "powder blue",
     "Dendrite_claw": "light blue",
     "Dendritic_Claw": "light blue",
@@ -110,7 +110,7 @@ section_colors = {
     "dendritic_7": "orange",
     "custom": "white",
     "unspecified neurites": "gold",
-    "Neurote": "gold",
+    "Neurite": "gold",
     "type_8": "red",
     "type_13": "orange",
     "type_14": "yellow",

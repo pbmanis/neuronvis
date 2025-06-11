@@ -29,6 +29,7 @@ import argparse
 from dataclasses import dataclass
 from dataclasses import dataclass, field
 from typing import Union, Dict, List
+import pandas as pd
 
 os.environ["PYQTGRAPH_QT_LIB"] = "PyQt6"
 import pyqtgraph as pg
@@ -43,6 +44,7 @@ from pylibrary.tools import fileselector
 from .hoc_reader import HocReader
 from .hoc_viewer import HocViewer
 import neuronvis.renderer_colormaps as rc
+
 section_colors = rc.section_colors
 
 
@@ -71,7 +73,6 @@ display_renderers = {
 # Handle display_modes
 
 
-
 class Render(object):
     def __init__(
         self,
@@ -83,6 +84,7 @@ class Render(object):
         mechanism: Union[str, None] = None,
         fighandle: Union[object, None] = None,
         sim_data: Union[Path, str, None] = None,
+        points: Union[Path, str, None] = None,
         initial_view: list = [200.0, 0.0, 0.0],
         figsize: list = [1000.0, 1000.0],
         output_file: Union[Path, str, None] = None,
@@ -92,7 +94,7 @@ class Render(object):
         color: str = "blue",
         alpha: float = 1.0,
         label: Union[str, None] = None,
-        secmap: str = "swc",  # mapping for swc files
+        section_map: str = "swc",  # mapping for swc files
         state: Union[object, None] = None,
         flags=None,  # passed to mayavi, probably str, list or object.
     ) -> None:
@@ -115,11 +117,21 @@ class Render(object):
         self.center = center
         self.display_style = display_style
         self.display_mode = display_mode
+        self.points = points
         self.label = label
         self.alpha = alpha
         self.verify = verify
         self.state = state  # vispy object state for display turntable
-        hoc = HocReader(hoc_file, somaonly=somaonly, secmap=secmap, center=center, verify=verify)
+        hoc = HocReader(
+            hoc_file, somaonly=somaonly, section_map=section_map, center=self.center, verify=verify
+        )
+        if self.points is not None:
+            self.pointdata = pd.read_csv(self.points)
+        else:
+            self.pointdata = None
+        #   print(self.points, self.pointdata)
+        # exit()
+
         title = str(Path(hoc_file).name)
         self.view = HocViewer(
             hoc,
@@ -128,66 +140,132 @@ class Render(object):
             figsize=figsize,
             fighandle=fighandle,
         )
+        print("section_map: ", section_map)
+        print("display_style: ", display_style)
+        print("renderer: ", self.renderer)
+        match display_style:
+            case "volume":
+                if self.renderer == "pyqtgraph":
+                    g = self.view.draw_volume()
+                elif self.renderer == "mayavi":
+                    g = self.view.draw_volume_mayavi()
+                else:
+                    raise ValueError("Can only render volume with pyqtgraph and mayavi")
 
-        if display_style == "volume":
-            if self.renderer == "pyqtgraph":
-                g = self.view.draw_volume()
-            elif self.renderer == "mayavi":
-                g = self.view.draw_volume_mayavi()
-            else:
-                raise ValueError("Can only render volume with pyqtgraph and mayavi")
-
-        elif display_style == "surface":
-            g = self.view.draw_surface()
-            self.color_map(
-                g, display_mode, colors=section_colors, mechanism=mechanism, alpha=self.alpha
-            )
-
-        elif display_style == "graph":
-            if self.renderer == "pyqtgraph":
-                g = self.view.draw_graph()
+            case "surface":
+                g = self.view.draw_surface()
                 self.color_map(
                     g,
-                    display_style,
+                    display_mode,
+                    section_map=section_map,
+                    colors=section_colors,
                     mechanism=mechanism,
                     alpha=self.alpha,
                 )
-            elif self.renderer == "mpl":
-                g = self.view.draw_mpl_graph(fax=fax)
-            elif self.renderer == "mayavi":
-                g = self.view.draw_mayavi_graph(color=self.color, label=label, flags=flags)
-            else:
-                raise ValueError("Can only render graph in pyqtgraph, matplotlib and mayavi ")
 
-        elif display_style == "cylinders":
-            if self.renderer == "pyqtgraph":
-                g = self.view.draw_cylinders()
-                self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+            case "graph":
+                if self.renderer == "pyqtgraph":
+                    g = self.view.draw_graph()
+                    self.color_map(
+                        g,
+                        display_style,
+                        mechanism=mechanism,
+                        alpha=self.alpha,
+                    )
+                    if self.points is not None:
+                        print("pointdata: ", self.pointdata)
+                        g.scatter(
+                            self.pointdata["x"],
+                            self.pointdata["y"],
+                            self.pointdata["z"],
+                            color=self.pointdata["color"],
+                            size=10,
+                        )
+                elif self.renderer == "mpl":
+                    g = self.view.draw_mpl_graph(fax=fax)
+                    if self.points is not None:
+                        print(fax[1])
+                        fax[1].scatter(
+                            self.pointdata["x"],
+                            self.pointdata["y"],
+                            self.pointdata["z"],
+                            color=self.pointdata["color"],
+                            s=10,
+                        )
 
-            elif self.renderer == "mpl":
-                g = self.view.draw_mpl_cylinders(fax=fax, colors=section_colors)
-                # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+                elif self.renderer == "mayavi":
+                    g = self.view.draw_mayavi_graph(color=self.color, label=label, flags=flags)
+                else:
+                    raise ValueError("Can only render graph in pyqtgraph, matplotlib and mayavi ")
 
-            elif self.renderer == "vispy":
-                g = self.view.draw_vispy(
-                    mechanism=mechanism, color=section_colors, state=self.state, title=title
-                )
+            case "cylinders":
+                if self.renderer == "pyqtgraph":
+                    g = self.view.draw_cylinders()
+                    g.setShader("balloon")
+                    g.setGLOptions("additive")
+                    self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+                    print("points? : ", self.points)
+                    if self.points is not None:
+                        # print("pointdata: ", self.pointdata)
 
-            elif self.renderer == "mayavi":
-                g = self.view.draw_mayavi_cylinders(
-                    color=section_colors,
-                    label=label,
-                    flags=flags,
-                    mechanism=mechanism,
-                )
-                self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
-                g.g.render()
-            else:
-                raise ValueError(
-                    "Can only render cylinders in pyqtgraph, matplotlib, vispy and mayavi "
-                )
+                        from pyqtgraph import opengl as opengl
+                        import pyqtgraph as pg
+                        from pyqtgraph import QtGui
+                        import sys
+                        if 'darwin' in sys.platform:
+                            print("Darwin detected, setting OpenGL format")
+                            fmt = QtGui.QSurfaceFormat()
+                            fmt.setRenderableType(fmt.RenderableType.OpenGL)
+                            fmt.setProfile(fmt.OpenGLContextProfile.CoreProfile)
+                            fmt.setVersion(4, 1)
+                            QtGui.QSurfaceFormat.setDefaultFormat(fmt)
+                            
+                        presyns = np.array([self.pointdata["x"], self.pointdata["y"], self.pointdata["z"]]).T
+                        presyns *= 0.1
+                        # presyns -= np.array([8.67/0.4, 2.99/0.4, 4.19/ 1])  # offset to avoid rendering at (0,0,0)
+                        # presyns = np.array([[0, 1, 2], [0, 1, 2], [0, 1, 2]]).T # print(presyns)
+                        self.pg_SP = opengl.GLScatterPlotItem(
+                            pos= presyns,
+                            size=3,
+                            color=pg.glColor('g'),
+                            pxMode=True,
 
-        elif display_mode == "vm":
+                        )
+
+                        self.view.addItem(self.pg_SP)
+
+                elif self.renderer == "mpl":
+                    g = self.view.draw_mpl_cylinders(fax=fax, colors=section_colors)
+                    # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+                    if self.points is not None:
+                        print(fax[1])
+                        fax[1].scatter(
+                            self.pointdata["x"],
+                            self.pointdata["y"],
+                            self.pointdata["z"],
+                            color=self.pointdata["color"],
+                            s=10,
+                        )
+                elif self.renderer == "vispy":
+                    g = self.view.draw_vispy(
+                        mechanism=mechanism, color=section_colors, state=self.state, title=title
+                    )
+
+                elif self.renderer == "mayavi":
+                    g = self.view.draw_mayavi_cylinders(
+                        color=section_colors,
+                        label=label,
+                        flags=flags,
+                        mechanism=mechanism,
+                    )
+                    self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
+                    g.g.render()
+                else:
+                    raise ValueError(
+                        "Can only render cylinders in pyqtgraph, matplotlib, vispy and mayavi "
+                    )
+
+        if display_mode == "vm":
 
             # Render animation of membrane voltage
             if self.sim_data is None:
@@ -233,25 +311,26 @@ class Render(object):
         g: object,
         display_mode: str,
         mechanism: Union[str, None] = None,
+        section_map: str = "swc",
         colors: dict = section_colors,
         alpha: float = 1.0,
     ) -> None:
         print("set color map")
+        # print("colors: ", colors)
         assert g is not None
 
         if display_mode == "sec-type":
             print("sec type with alpha: ", alpha, self.renderer)
             if self.renderer == "pyqtgraph":
                 g.set_group_colors(colors, alpha=alpha)
+                # self.view.setBackground(0xddddddff)
             elif self.renderer == "mayavi":
                 print("set sectype colors mayavi")
                 # g.set_group_colors(colors, alpha=alpha)
-            # self.setBackgroundColor('grey')
-        elif display_mode == "mechanism" and (
-            mechanism != "None" or mechanism is not None
-        ):
-            print('Setting color map by mechanism: ', mechanism)
-            if   self.renderer == 'pyqtgraph':
+
+        elif display_mode == "mechanism" and (mechanism != "None" or mechanism is not None):
+            print("Setting color map by mechanism: ", mechanism)
+            if self.renderer == "pyqtgraph":
                 g.set_group_colors(colors, mechanism=mechanism)
 
     def vm_to_color(self, v: np.ndarray) -> np.ndarray:
@@ -346,7 +425,7 @@ def main() -> None:
         "--secmap",
         type=str,
         default="sbem3",
-        dest="secmap",
+        dest="section_map",
         choices=["swc", "sbem", "sbem2", "sbem3"],
         help="Choose section mapping",
     )
@@ -411,6 +490,14 @@ def main() -> None:
         help="print hoc output from swc for verification",
     )
 
+    parser.add_argument(
+        "--points",
+        "-p",
+        dest="points",
+        action="store",
+        default=None,
+        help="Points from a csv file to plot along with rendering (default: None.)",
+    )
     args = vars(parser.parse_args())
 
     hoc_file = None
@@ -445,7 +532,8 @@ def main() -> None:
         alpha=args["alpha"],
         verify=args["verify"],
         sim_data=sim_data,
-        secmap=args["secmap"],
+        section_map=args["section_map"],
+        points=args.get("points", None),
     )
 
 

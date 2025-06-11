@@ -261,15 +261,18 @@ class HocGraphic(object):
         a few of those. 
         """
         sec_colors = dict.fromkeys(self.h.sections)  # initially empty.
-        mechmax = 0.0
+        mechmax = 0.0  # for mechanism coloring
         mechmin = 1.0
+        if mechanism is None:
+            color_by_mechanism = False
+        else:
+            color_by_mechanism = True
         # color sections for each "group" or identified cell part
-        # print("colors: ", colors.items())
-
-
+ 
+        # for each structure named, get the name and the color from the dictionary
         for group_name, color in colors.items():
+            # find which sections have that group name
             sections = self.h.get_section_group(group_name)
-            print("group name, sections: ", group_name, sections)
             if sections is None:
                 continue
 
@@ -281,10 +284,9 @@ class HocGraphic(object):
             for (
                 sec_name
             ) in sections:  # set base color value; if using mechanism, then set gbar
-                print("sec_name: ", sec_name, group_name, sec_color)
-
+ 
                 sec_colors[sec_name] = Colors[sec_color] # .copy()
-                if mechanism not in [None, "None"]:
+                if color_by_mechanism:
                     sec_colors[sec_name] = [1, 0, 0, 1]
                     gbar = self.h.get_density(self.h.sections[sec_name], mechanism)
                     mechmax = np.max((mechmax, gbar))
@@ -292,14 +294,13 @@ class HocGraphic(object):
                     sec_colors[sec_name][
                         3
                     ] = gbar  # use the alpha channel to set the color
-        # print("sec_colors: ", sec_colors)
-        # exit()
+
         # scale the alpha channel according to the mechanism
-        if mechanism not in [None, "None"] and mechmax > 0.0:
+        if color_by_mechanism and mechmax > 0.0:
             done = []
             for group_name, color in colors.items():
                 sections = self.h.get_section_group(group_name)
-                print("group: ", group_name, "sections: ", sections)
+                # print("group: ", group_name, "sections: ", sections)
                 if sections is None:
                     continue
                 # rgb = sec_colors[c][:3]/mechmax # cmap.map(sec_colors[c][3] / mechmax, "float")
@@ -320,12 +321,10 @@ class HocGraphic(object):
                         # print(sec_colors[sec_name])
                         done.append(sec_name)
 
-        # print('final sec colors: ', [[sec, sec_colors[c]] for c in sec_colors.keys()])
         self.sec_colors = sec_colors
         self.set_section_colors(sec_colors)
         return sec_colors
-        # print(self.sec_colors)
-
+ 
 
 class mplGraphic(object):
     """
@@ -337,7 +336,7 @@ class mplGraphic(object):
     def __init__(self, h, parentItem: Union[object, None] = None, **kwds):
         self.h = h
         self.cmx = matplotlib.cm.ScalarMappable(norm=norm, cmap=cm_sns)
-        print("init mplGraphic")
+        print("initializing mplGraphic")
 
     def get_color_map(self, i):
         return colorMap[i]
@@ -421,17 +420,20 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         h: HocReader instance
     """
 
-    def __init__(self, h):
+    def __init__(self, h, scale=0.1):
         super(HocGraphic, self).__init__()
         self.h = h
         verts, edges = h.get_geometry()
+        verts['pos'] = verts['pos']*scale
+
+
         print("HOC Cylinders")
         meshes = []
         sec_ids = []
         print("# edges: ", len(edges), len(verts))
         for edge in edges:
             ends = verts["pos"][edge]
-            dia = verts["dia"][edge]
+            dia = verts["dia"][edge]*scale
             sec_id = verts["sec_index"][edge[0]]
 
             dif = ends[1] - ends[0]
@@ -877,7 +879,7 @@ class mpl_Cylinders(mplGraphic):
         # print('set group colors')
         dsecs = []
         for group_name, color in colors.items():
-            print("group name, color: ", group_name, color)
+            # print("group name, color: ", group_name, color)
             sections = self.h.get_section_group(group_name)
             if sections is None:
                 continue
@@ -885,7 +887,7 @@ class mpl_Cylinders(mplGraphic):
                 if isinstance(color, str):
                     color = Colors[color]
                 index = self.h.sec_index[sec_name]
-                print("set_group_colors: ", sec_name, index, color)
+                # print("set_group_colors: ", sec_name, index, color)
                 if mechanism is None:
                     sec_colors[index] = color
                 else:
@@ -930,6 +932,7 @@ class HocGrid(HocGraphic, gl.GLGridItem):
         self.grid.setSize(x=size[0], y=size[1], z=size[2])  # 100 um grid spacing
         self.grid.setSpacing(x=spacing[0], y=spacing[1], z=spacing[2])  # 10 um steps
         self.grid.scale(1, 1, 1)  # uniform scale
+
         # self.grid.translate(100., 0., 0.)
         # super(HocGrid, self).__init__(size, spacing, color=grcolor)
 

@@ -129,7 +129,7 @@ class HocViewer(gl.GLViewWidget):
     def __init__(
         self,
         hoc: str,
-        camerapos: list = [200.0, 0.0, 0.0],
+        camerapos: list = [200.0, 1000.0, 1000.0],
         renderer: str = "pyqtgraph",
         fighandle: Union[object, None] = None,
         figsize: list = [720, 720],
@@ -143,14 +143,16 @@ class HocViewer(gl.GLViewWidget):
         self.camerapos = camerapos
         self.video_file = None
         print("hocviewer got Renderer: ", renderer)
+        
+        # set up for each specific renderer
         if renderer == "pyqtgraph" and fighandle == None:
             self.win = pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
-            self.win.setStyle("fusion")
+            # self.win.setStyle("fusion")
             dark_palette = QtGui.QPalette()
             white = QtGui.QColor(255, 255, 255)
             black = QtGui.QColor(0, 0, 0)
             red = QtGui.QColor(255, 0, 0)
-            dark_palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor(53, 53, 53))
+            dark_palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColorConstants.DarkGray)
             dark_palette.setColor(QtGui.QPalette.ColorRole.WindowText, white)
             dark_palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor(25, 25, 25))
             dark_palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor(53, 53, 53))
@@ -168,16 +170,13 @@ class HocViewer(gl.GLViewWidget):
 
             super(HocViewer, self).__init__()
             # self.resize(figsize)
-
-            self.setBackcolor(pg.glColor(pg.mkColor(255, 255, 255, 255)))
-            self.win.setStyleSheet("{background-color: lightgray;}") 
-            color = "w"
+            # self.win.setBackcolor(pg.glColor(pg.mkColor(200, 200, 200, 255)))
+            # self.win.setStyleSheet("{background-color: white;}") 
             self.show()
             self.setWindowTitle("hocViewer")
             self.setCameraPosition(
                 distance=camerapos[0], elevation=camerapos[1], azimuth=camerapos[2]
             )
-           
             # axis orientation item
             self.ax = GLAxisItem_r()
             print("color in ax: ", self.ax.property('color'))
@@ -186,14 +185,57 @@ class HocViewer(gl.GLViewWidget):
             
             self.grid = HG.HocGrid()
             self.graphics.append(self.grid)
+            xlabel = gl.GLTextItem()
+            xlabel.setData(pos=(10, 0, 0), text="X", color='b')
+            ylabel = gl.GLTextItem()
+            ylabel.setData(pos=(0, 10, 0), text="Y", color='y')
+            zlabel = gl.GLTextItem()
+            zlabel.setData(pos=(0, 0, 10), text="Z", color='g')
+            self.addItem(xlabel)
+            self.addItem(ylabel)
+            self.addItem(zlabel)
             gl.GLGridItem(color=pg.mkColor(128, 128, 128))
 
             self.grid.setSize(x=100., y=100., z=100.)  # 100 um grid spacing
             self.grid.setSpacing(x=10., y=10., z=10.)  # 10 um steps
             self.grid.scale(1,1,1)  # uniform scale
             self.grid.translate(0., 0., 0.)
+            self.grid.setGLOptions("translucent")
             self.addItem(self.grid)
-            
+      
+            self.grid1 = HG.HocGrid()
+            self.graphics.append(self.grid1)
+            self.grid1.setSize(x=2000., y=2000., z=2000.)
+            self.grid1.setSpacing(x=100., y=100., z=100.)
+            self.grid1.scale(1, 1, 1)
+            self.grid1.translate(0., 0., 0.)
+            # self.grid2.setGLOptions("translucent")
+            self.grid1.setColor(pg.mkColor(255, 255, 0, 128))
+            self.addItem(self.grid1)
+
+            self.grid2 = HG.HocGrid()
+            self.graphics.append(self.grid2)
+            self.grid2.setSize(x=2000., y=2000., z=2000.)
+            self.grid2.setSpacing(x=100., y=100., z=100.)
+            self.grid2.scale(1, 1, 1)
+            self.grid2.translate(0., 0, 0.)
+            self.grid2.rotate(-90, 0, 1, 0)  # rotate around x-axis
+            # self.grid2.setGLOptions("translucent")
+            self.grid2.setColor(pg.mkColor(0, 255, 0, 128))
+            self.addItem(self.grid2)
+
+            self.grid3 = HG.HocGrid()
+            self.graphics.append(self.grid3)
+            self.grid3.setSize(x=2000., y=2000., z=2000.)
+            self.grid3.setSpacing(x=100., y=100., z=100.)
+            self.grid3.scale(1, 1, 1)
+            self.grid3.translate(0., 0., 0.)
+            self.grid3.rotate(-90, 1, 0, 0)
+            # self.grid2.setGLOptions("translucent")
+            self.grid3.setColor(pg.mkColor(0, 0, 255, 128))
+            self.addItem(self.grid3)
+
+
         elif renderer == "mayavi" and fighandle == None:
             fighandle = mlab.figure(
                 figure=None,
