@@ -40,5 +40,5 @@ simplejson==3.17.0
 # vispy # experimetnal
 vispy>=0.8.1
 
--e git+https://github.com/pbmanis/ephys.git@main#egg=ephys
+# -e git+https://github.com/pbmanis/ephys.git@main#egg=ephys
 -e git+https://github.com/pbmanis/pylibrary.git#egg=pylibrary # @838d89618e13c916a52fe7cb2b59ab171d821c7e#egg=pylibrary
