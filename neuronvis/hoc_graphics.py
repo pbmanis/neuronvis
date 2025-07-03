@@ -1509,7 +1509,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
     ):
         sec_color = (0.5, 0.5, 0.5, 1)  # default color
         sname = section.name()
-        print("get section color: section.name", sname)
+        # print("get section color: section.name", sname)
         return sec_color
 
     """
