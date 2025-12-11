@@ -73,6 +73,43 @@ class HocReader(object):
         else:
             self.h = hoc  # just use the passed argument
             self.file_loaded = True
+        if self.center:
+            soma_found = False
+            for i, sec in enumerate(self.h.allsec()):
+                if fullfile.suffix in [".hoc"]:
+                    if sec.name() == "soma":
+                        x0 = sec.x3d(0)
+                        y0 = sec.y3d(0)
+                        z0 = sec.z3d(0)
+                        # print("Centering soma at (%.2f, %.2f, %.2f)" % (x0, y0, z0)
+                        # )
+                        soma_found = True
+                        break
+                elif fullfile.suffix in [".swc"]    :
+                    if i == 0:  # assume the first section is soma
+                        x0 = sec.x3d(0)
+                        y0 = sec.y3d(0)
+                        z0 = sec.z3d(0)
+                        # print("Centering soma at (%.2f, %.2f, %.2f)" % (x0, y0, z0)
+                        # )
+                        soma_found = True
+                        break
+            if soma_found:
+                for sec in self.h.allsec():
+                    for i in range(int(sec.n3d())):
+                        h.pt3dchange(i, sec.x3d(i)-x0, sec.y3d(i)-y0, sec.z3d(i)-z0, sec.diam3d(i), sec=sec)
+
+            else:
+                print(
+                    "Warning: No soma section found, not centering the sections. "
+                    "You may want to add a soma section to your hoc file."
+                )
+                secnames = []
+                for sec in self.h.allsec():
+                    if sec.name() not in secnames:
+                        secnames.append(sec.name())
+                print("Available sections: ", secnames)
+                exit()
         print("File read and file_loaded is: ", self.file_loaded)
         
         # geometry containers
@@ -245,10 +282,9 @@ class HocReader(object):
             self.sec_index[sec.name()] = i
             mechs = set()
             for seg in sec:
-                pass
-             # for iseg, mech in enumerate(seg):
-                #     print("  mech: ", mech)
-                #     mechs.add(mech.name())
+                for mech in seg:
+                    mechs.add(mech.name())
+
             self.mechanisms[sec.name()] = mechs
 
     def hoc_namespace(self) -> dict:
