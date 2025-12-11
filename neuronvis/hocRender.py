@@ -21,9 +21,26 @@ render.show()
 Portions of this code were taken from neuronvisio (http://neuronvisio.org), specifically, to parse
 the hoc file connection structure (specifically: getSectionInfo, and parts of drawModel).
 
+Example usage:
+hocRender VCN_Rostral_P60_Granule_Cell_Node_List_06-202500000.swc --secmap sbem3 -r pyqtgraph -s cylinders 
+    -p new_counting_points.csv -m sec-type --sx 0.024 --sy 0.024 --sz 0.07
+
+Reads the swc file, renders it as cylinders using pyqtgraph, colors the sections by type using the "SBEM3" section map,
+and plots the points from the csv file "new_counting_points.csv" as green spheres.
+   The data can be scaled by the factors sx, sy, sz (default 1.0) to match the
+   scale of the data in the swc file (but really, the swc file should be scaled to match the data).
+
+   We ASSUME that the swc file is in micrometers, and the points are in micrometers as well. If
+   the swc file is in pixes, then the swc data needs to be scaled.
+
+   Centering is applied to both the swc file and the points, but must be applied to the swc/hocx file
+   structure after scaling, so that the points are in the same coodinate system.
+
 """
 
-import os, sys, pickle
+import os
+import sys
+import pickle
 from pathlib import Path
 import argparse
 from dataclasses import dataclass
@@ -33,6 +50,8 @@ import pandas as pd
 
 os.environ["PYQTGRAPH_QT_LIB"] = "PyQt6"
 import pyqtgraph as pg
+from pyqtgraph import opengl as opengl
+from pyqtgraph import QtGui
 
 # from mayavi import mlab
 import numpy as np
@@ -85,6 +104,7 @@ class Render(object):
         fighandle: Union[object, None] = None,
         sim_data: Union[Path, str, None] = None,
         points: Union[Path, str, None] = None,
+        scalexyzr: dict = {'x': 1.0, 'y': 1.0, 'z': 1.0, 'r': 1.0},  # scale x, y, z and r
         initial_view: list = [200.0, 0.0, 0.0],
         figsize: list = [1000.0, 1000.0],
         output_file: Union[Path, str, None] = None,
@@ -115,6 +135,7 @@ class Render(object):
         self.color = color
         self.renderer = display_renderer
         self.center = center
+        self.scalexyzr = scalexyzr
         self.display_style = display_style
         self.display_mode = display_mode
         self.points = points
@@ -122,15 +143,25 @@ class Render(object):
         self.alpha = alpha
         self.verify = verify
         self.state = state  # vispy object state for display turntable
+        print("calling HocReader")
         hoc = HocReader(
-            hoc_file, somaonly=somaonly, section_map=section_map, center=self.center, verify=verify
+            hoc_file, somaonly=somaonly, section_map=section_map, center=self.center, 
+            scale = self.scalexyzr, verify=verify
         )
+        print("read ok")
         if self.points is not None:
-            self.pointdata = pd.read_csv(self.points)
+            self.counting_point_data = pd.read_csv(self.points)
+            print("hoc centerpos: ", hoc.centerpos)
+            self.counting_point_data['x'] -= hoc.centerpos['x']
+            self.counting_point_data['y'] -= hoc.centerpos['y']
+            self.counting_point_data['z'] -= hoc.centerpos['z']
+            print("Point data: ")
+            print(self.counting_point_data)
         else:
-            self.pointdata = None
-        #   print(self.points, self.pointdata)
-        # exit()
+            self.counting_point_data = None
+        
+
+
 
         title = str(Path(hoc_file).name)
         self.view = HocViewer(
@@ -172,24 +203,23 @@ class Render(object):
                         mechanism=mechanism,
                         alpha=self.alpha,
                     )
-                    if self.points is not None:
-                        print("pointdata: ", self.pointdata)
+                    if self.points is not None and self.counting_point_data is not None:
                         g.scatter(
-                            self.pointdata["x"],
-                            self.pointdata["y"],
-                            self.pointdata["z"],
-                            color=self.pointdata["color"],
-                            size=10,
+                            self.counting_point_data["x"],
+                            self.counting_point_data["y"],
+                            self.counting_point_data["z"],
+                            color=self.counting_point_data["color"],
+                            size=32,
                         )
                 elif self.renderer == "mpl":
                     g = self.view.draw_mpl_graph(fax=fax)
-                    if self.points is not None:
+                    if self.points is not None and self.counting_point_data is not None:
                         print(fax[1])
                         fax[1].scatter(
-                            self.pointdata["x"],
-                            self.pointdata["y"],
-                            self.pointdata["z"],
-                            color=self.pointdata["color"],
+                            self.counting_point_data["x"],
+                            self.counting_point_data["y"],
+                            self.counting_point_data["z"],
+                            color=self.counting_point_data["color"],
                             s=10,
                         )
 
@@ -202,16 +232,13 @@ class Render(object):
                 if self.renderer == "pyqtgraph":
                     g = self.view.draw_cylinders()
                     g.setShader("balloon")
-                    g.setGLOptions("additive")
+                    # g.setGLOptions("additive")
                     self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
                     print("points? : ", self.points)
-                    if self.points is not None:
-                        # print("pointdata: ", self.pointdata)
+                    if self.points is not None and self.counting_point_data is not None:
+                        # print("pointdata: ", self.counting_point_data)
 
-                        from pyqtgraph import opengl as opengl
-                        import pyqtgraph as pg
-                        from pyqtgraph import QtGui
-                        import sys
+
                         if 'darwin' in sys.platform:
                             print("Darwin detected, setting OpenGL format")
                             fmt = QtGui.QSurfaceFormat()
@@ -220,15 +247,13 @@ class Render(object):
                             fmt.setVersion(4, 1)
                             QtGui.QSurfaceFormat.setDefaultFormat(fmt)
                             
-                        presyns = np.array([self.pointdata["x"], self.pointdata["y"], self.pointdata["z"]]).T
-                        presyns *= 0.1
-                        # presyns -= np.array([8.67/0.4, 2.99/0.4, 4.19/ 1])  # offset to avoid rendering at (0,0,0)
-                        # presyns = np.array([[0, 1, 2], [0, 1, 2], [0, 1, 2]]).T # print(presyns)
+                        presyns = np.array([self.counting_point_data["x"], self.counting_point_data["y"], self.counting_point_data["z"]]).T
+                        colors = [pg.mkColor(c) for c in self.counting_point_data["color"].values]
                         self.pg_SP = opengl.GLScatterPlotItem(
                             pos= presyns,
-                            size=3,
-                            color=pg.glColor('g'),
-                            pxMode=True,
+                            size=1,
+                            color=colors[0],
+                            pxMode=False,
 
                         )
 
@@ -237,13 +262,12 @@ class Render(object):
                 elif self.renderer == "mpl":
                     g = self.view.draw_mpl_cylinders(fax=fax, colors=section_colors)
                     # self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
-                    if self.points is not None:
-                        print(fax[1])
+                    if self.points is not None and self.counting_point_data is not None:
                         fax[1].scatter(
-                            self.pointdata["x"],
-                            self.pointdata["y"],
-                            self.pointdata["z"],
-                            color=self.pointdata["color"],
+                            self.counting_point_data["x"],
+                            self.counting_point_data["y"],
+                            self.counting_point_data["z"],
+                            color=self.counting_point_data["color"],
                             s=10,
                         )
                 elif self.renderer == "vispy":
@@ -397,7 +421,7 @@ class Render(object):
 
 
 def main() -> None:
-
+    import sys
     parser = argparse.ArgumentParser(
         description="Hoc Rendering",
         argument_default=argparse.SUPPRESS,
@@ -472,6 +496,44 @@ def main() -> None:
         default=False,
         help="Force first point to be (0,0,0) (default: False)",
     )
+
+    parser.add_argument(
+        "--scale",
+        "-S",
+        dest="scale",
+        type=float,
+        default=1.0,
+        help="Scale the rendering by this factor (default: 1.0)",
+    )   
+    parser.add_argument(
+        "--sx",
+        dest="scalex",
+        type=float,
+        default=1.0,
+        help="Scale the X rendering by this factor (default: 1.0)",
+    )   
+    parser.add_argument(
+        "--sy",
+        dest="scaley",
+        type=float,
+        default=1.0,
+        help="Scale the Y rendering by this factor (default: 1.0)",
+    )
+    parser.add_argument(
+        "--sz",
+        dest="scalez",
+        type=float,
+        default=1.0,
+        help="Scale the Z rendering by this factor (default: 1.0)",
+    )   
+    parser.add_argument(
+        "--sr",
+        dest="scaler",
+        type=float,
+        default=1.0,
+        help="Scale the swc radius rendering by this factor (default: 1.0)",
+    )   
+
     parser.add_argument(
         "--alpha",
         "-a",
@@ -520,13 +582,16 @@ def main() -> None:
     elif args["input_file"] in ["select", "file"]:
         hoc_file = "select"
     else:
-        error()
+        raise ValueError("Input file must be a hoc, hocx, swc or p file.")
 
     Render(
         hoc_file=hoc_file,
         display_style=args["display_style"],
         display_renderer=args["display_renderer"],
         center=args["center"],
+
+        scalexyzr = {'x': args.get("scalex", 1.0), 'y': args.get("scaley", 1.0),
+                      'z': args.get("scalez", 1.0), 'r': args.get("scaler", 1.0)},
         display_mode=args["display_mode"],
         mechanism=args["mechanism"],
         alpha=args["alpha"],

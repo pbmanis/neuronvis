@@ -123,7 +123,7 @@ class HocViewer(gl.GLViewWidget):
     This is a convenience class implementing boilerplate display code.
 
     Input:
-        h: HocReader instance or "xxxx.hoc" file name
+        hoc: HocReader instance or "xxxx.hoc" file name
     """
 
     def __init__(
@@ -179,32 +179,39 @@ class HocViewer(gl.GLViewWidget):
             )
             # axis orientation item
             self.ax = GLAxisItem_r()
-            print("color in ax: ", self.ax.property('color'))
+            # print("color in ax: ", self.ax.property('color'))
             self.addItem(self.ax)
-            self.ax.setSize(20, 20, 20)
+            self.ax.setSize(10, 10, 10)
             
             self.grid = HG.HocGrid()
             self.graphics.append(self.grid)
             xlabel = gl.GLTextItem()
-            xlabel.setData(pos=(10, 0, 0), text="X", color='b')
+            xlabel.setData(pos=(10, 0, 0), text="X (10)", color='c')
             ylabel = gl.GLTextItem()
-            ylabel.setData(pos=(0, 10, 0), text="Y", color='y')
+            ylabel.setData(pos=(0, 10, 0), text="Y (10)", color='y')
             zlabel = gl.GLTextItem()
-            zlabel.setData(pos=(0, 0, 10), text="Z", color='g')
+            zlabel.setData(pos=(0, 0, 10), text="Z (10)", color='g')
             self.addItem(xlabel)
             self.addItem(ylabel)
             self.addItem(zlabel)
             gl.GLGridItem(color=pg.mkColor(128, 128, 128))
 
-            self.grid.setSize(x=100., y=100., z=100.)  # 100 um grid spacing
+            self.grid.setSize(x=200., y=200., z=200.)  # 100 um grid spacing
+            dlx = gl.GLTextItem()
+            dlx.setData(pos=(200, 0, 0), text="X (100/10)", color='c')
+            self.addItem(dlx)
             self.grid.setSpacing(x=10., y=10., z=10.)  # 10 um steps
             self.grid.scale(1,1,1)  # uniform scale
             self.grid.translate(0., 0., 0.)
             self.grid.setGLOptions("translucent")
             self.addItem(self.grid)
+            self.grid.setColor(pg.mkColor(0, 255, 255, 128))  # magenta grid
       
             self.grid1 = HG.HocGrid()
             self.graphics.append(self.grid1)
+            glx = gl.GLTextItem()
+            glx.setData(pos=(1000, 0, 0), text="X (2000/100)", color='c')
+            self.addItem(glx)
             self.grid1.setSize(x=2000., y=2000., z=2000.)
             self.grid1.setSpacing(x=100., y=100., z=100.)
             self.grid1.scale(1, 1, 1)
@@ -343,7 +350,7 @@ class HocViewer(gl.GLViewWidget):
         HocCylinders instance
         """
 
-        g = HG.HocCylinders(self.hr)  # , facets=24) ? no facets in call?
+        g = HG.HocCylinders(self.hr) 
         self.graphics.append(g)
         self.addItem(g)
         return g

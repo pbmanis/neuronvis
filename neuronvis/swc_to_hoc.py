@@ -75,7 +75,7 @@ class SWC(object):
         types: Union[str, None] = None,
         section_map: str = "swc",
         data: Union[np.ndarray, None] = None,
-        scales: Union[dict, None] = None,
+        scalexyzr: Union[dict, None] = None,
         center: bool = False,
         verify: bool = False,
         args: object = None,
@@ -89,18 +89,17 @@ class SWC(object):
             ("r", float),
             ("parent", int),
         ]
-        print("swctohoc: ", verify)
         self._id_lookup = None
         self._sections = None
         self._children = None
-        self.scales = scales
+        self.scalexyzr = scalexyzr
         self.pruneaxon = False
         self.prunedendrite = False
         self.prunedistal = False
         self.topology = False
         self.center = center
         self.verify = verify
-        self.centerpos = None
+        self.centerpos = {'x': 0.0, 'y': 0.0, 'z': 0.0}
         if args is not None:
             self.center = args.center
             self.pruneaxon = args.pruneaxon
@@ -130,38 +129,50 @@ class SWC(object):
             self.data = data
         elif filename is not None:
             self.load(filename.with_suffix(".swc"))
+            print("load ok")
             self.filename = filename
         else:
             raise TypeError("Must initialize with filename or data array.")
 
+        print("sorting: ")
         self.sort()
         self.set_parent_section("soma")
-
+        print("sorted: ")
+        
     def load(self, filename: Union[Path, str, None] = None) -> None:
         assert filename is not None
         self.filename = Path(filename).with_suffix(".swc")
-        print(f"Loading: {str(self.filename):s}")
+        if not self.filename.is_file():
+            raise FileNotFoundError(f"swc_to_hoc:: SWC file {str(self.filename):s} not found.")
+        print(f"swc_to_hoc:: Loading: {str(self.filename):s}")
         self.data = np.loadtxt(self.filename, dtype=self._dtype)
 
-        if self.scales is not None:
-            print("Rescaling")
+        if self.scalexyzr is not None:
+            print("swc_to_hoc: Rescaling swc with: ", self.scalexyzr)
+            # hack: for radius if the scale is not set, use the projection of the xyz scales
+            rscale = self.scalexyzr.get("r", np.linalg.norm([self.scalexyzr["x"], self.scalexyzr["y"], self.scalexyzr["z"]]))
             self.rescale(
-                x=self.scales["x"],
-                y=self.scales["y"],
-                z=self.scales["z"],
-                r=self.scales["r"],
+                x=self.scalexyzr["x"],
+                y=self.scalexyzr["y"],
+                z=self.scalexyzr["z"],
+                r=rscale, # self.scalexyzr["r"],
             )
+            print("swc_to_hoc: Rescaled swc")
         if self.center:
-            print("Centering on first section in list")
+            print("swc_to_hoc: centering")
+            # save the original position
+            self.centerpos = {'x': self.data["x"][0],
+                              'y': self.data["y"][0],
+                              'z': self.data["z"][0]}
+            print("swc_to_hoc:: Centering swc on first section in list")
             self.translate(
                 x=-self.data["x"][0], # .min(),
                 y=-self.data["y"][0], # .min(),
                 z=-self.data["z"][0], # .min(),
                 r=0.0,
             )
-            self.centerpos = {'x': self.data["x"][0],
-                              'y': self.data["y"][0],
-                              'z': self.data["z"][0]}
+
+            print("swc_to_hoc:: Center position: ", self.centerpos)
 
     def copy(self) -> object:
         return SWC(data=self.data.copy(), types=self.sectypes)
@@ -178,8 +189,7 @@ class SWC(object):
         self.data = self.data[indexes]
         self._id_lookup = None
         self._sections = None
-        print("sorted")
-
+ 
     def branch(self, id: int) -> list:
         """
         Return a list of IDs in the branch beginning at *id*.
@@ -273,7 +283,7 @@ class SWC(object):
                     seen.add(p)
                     endpoints.remove(p)
                     if r["type"] == 10:
-                        print(f"removed {r['id']:d} from endpoint: ")
+                        print(f"swc_to_hoc:: removed {r['id']:d} from endpoint: ")
 
             # build lists of unbranched node chains
             lasttype = self.data["type"][0]
@@ -289,12 +299,12 @@ class SWC(object):
                 sec.append(r["id"])
                 if r["id"] in branchpts or r["id"] in endpoints or r["type"] != lasttype:
                     if r["type"] == 10:
-                        print("Got a hillock: ")
-                        print("id = ", r["id"], " lastid: ", lastid)
-                        print("Restarting type 10, because: in endpoint: ", r["id"] in endpoints)
-                        print(" or in brancpts: ", r["id"] in branchpts)
-                        print(" or not same as last type: ", r["type"], " lastype = ", lasttype)
-                        raise ValueError("Hillock in section, r type = 10")
+                        print("swc_to_hoc:: Got a hillock: ")
+                        print("    id = ", r["id"], " lastid: ", lastid)
+                        print("    Restarting type 10, because: in endpoint: ", r["id"] in endpoints)
+                        print("        or in brancpts: ", r["id"] in branchpts)
+                        print("        or not same as last type: ", r["type"], " lastype = ", lasttype)
+                        raise ValueError("swc_to_hoc:: Hillock in section, r type = 10")
                         # continue
                     sections.append(sec)
                     sec = []
@@ -327,17 +337,16 @@ class SWC(object):
         # if self.topology:
         #     print("Showing topology: no file will be written")
         #     return
-        print("MakeHOC in swctohoc", verify)
         hoc = []
         # Add some header information
         hoc.extend([f"// Translated from SWC format by: swc_to_hoc.py"])
         hoc.append(f"// Source file: {str(self.filename):s}")
         hoc.append(f"// {datetime.datetime.now().strftime('%B %d %Y, %H:%M:%S'):s}")
-        if self.scales is None:
+        if self.scalexyzr is None:
             hoc.append(f"// No scaling")
         else:
             hoc.append(
-                f"// Scaling: x: {self.scales['x']:f}, y: {self.scales['y']:f}, z: {self.scales['z']:f}, r: {self.scales['r']:f}"
+                f"// Scaling: x: {self.scalexyzr['x']:f}, y: {self.scalexyzr['y']:f}, z: {self.scalexyzr['z']:f}, r: {self.scalexyzr['r']:f}"
             )
         hoc.append("")
         sectypes = self.sectypes.copy()
@@ -418,7 +427,7 @@ class SWC(object):
         if filename is not None:
             with open(filename, "w") as fh:
                 fh.write("\n".join(hoc))
-            print(f"Wrote hoc file: {str(filename):s}")
+            print(f"swc_to_hoc:: Wrote hoc file: {str(filename):s}")
             # now generate reverse section map for reference
             self.make_segmap(filename)
         return hoc
@@ -489,7 +498,7 @@ class SWC(object):
             typ = self.sectypes[self[sec[0]]["type"]]
             secstr = self.shorten_secname(sec)
 
-            print("%ssections[%d] type=%s parent=%d %s" % (this_indent, i, typ, p, secstr))
+            print("swc_to_hoc:: %ssections[%d] type=%s parent=%d %s" % (this_indent, i, typ, p, secstr))
 
     def make_segmap(self, filename: Path, stronly=False) -> None:
         """
@@ -510,23 +519,23 @@ class SWC(object):
             filename of the hoc file to use for input
         """
 
-        re_section = re.compile("\s*(sections\[)([0-9]*)\]\s*{")
+        re_section = re.compile(r"\s*(sections\[)([0-9]*)\]\s*{")
         re.compile(
-            "\s*(pt3dadd\()([-+]?[0-9]*\.?[0-9]+)\,\s([-+]?[0-9]*\.?[0-9]+)\,\s([-+]?[0-9]*\.?[0-9]+)\,\s([-+]?[0-9]*\.?[0-9]+)"
+            r"\s*(pt3dadd\()([-+]?[0-9]*\.?[0-9]+)\,\s([-+]?[0-9]*\.?[0-9]+)\,\s([-+]?[0-9]*\.?[0-9]+)\,\s([-+]?[0-9]*\.?[0-9]+)"
         )
-        re_section = re.compile("\s*(sections\[)([0-9]*)\]\s*{")
-        re_access = re.compile("\s*(access)\s*(sections\[)([0-9]*)\]\s*")
-        re_append = re.compile("\s*([a-z]*)(.append\(\))")
+        re_section = re.compile(r"\s*(sections\[)([0-9]*)\]\s*{")
+        re_access = re.compile(r"\s*(access)\s*(sections\[)([0-9]*)\]\s*")
+        re_append = re.compile(r"\s*([a-z]*)(.append\(\))")
         re_connect = re.compile(
-            "\s*(connect)\s*(sections\[)([0-9]*)\](\([0-9]*\)),\s*(sections\[)([0-9]*)\](\([0-9]*\))"
+            r"\s*(connect)\s*(sections\[)([0-9]*)\](\([0-9]*\)),\s*(sections\[)([0-9]*)\](\([0-9]*\))"
         )
 
-        re_seg = re.compile("(seg\=)([\d]*)")  # '([d+])$')
-        re_endsec = re.compile("^}")
+        re_seg = re.compile(r"(seg\=)([\d]*)")  # '([d+])$')
+        re_endsec = re.compile(r"^}")
         dout = ""
         in_section = False
         secstr = ""
-        print("segmap File: ", filename)
+        print("swc_to_hoc:: Generating segmap File: ", filename)
         with open(filename, "r") as fh:
             for cnt, line in enumerate(fh):  # read the input file line by line
                 line = line.rstrip().lstrip()
@@ -552,7 +561,7 @@ class SWC(object):
                         swcs.append(swci)
         fout = Path(filename).with_suffix(".segmap")
         fout.write_text(dout)
-        print("Wrote hoc->swc segmap to: ", fout)
+        print(f"    Wrote hoc->swc segmap to: {fout!s}")
 
 
 def main() -> None:
@@ -672,8 +681,8 @@ def main() -> None:
     if fn.is_file():
         s = SWC(
             filename=fn,
-            sectio_map=args.section_map,
-            scales=scales,
+            section_map=args.section_map,
+            scalexyzr=scales,
             center=args.center,
             verify=args.verify,
             args=args,

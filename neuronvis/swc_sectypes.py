@@ -190,14 +190,14 @@ idsofpart_sbem2 = {  # for sbem2 map (what a pain! )
     "soma": [1],
 }
 
-idsofpart_sbem3 = {  # for sbem3 map (what a pain! )
-    "dendrite": [3, 4, 12, 13, 14, 11, 18],
-    "distal": [12, 14, 18],
-    "axon": [2, 10, 15, 16, 17],
-    "soma": [1],
-}
+# idsofpart_sbem3 = {  # for sbem3 map (what a pain! )
+#     "dendrite": [int(a) for a in range(23, 35)],
+#     "distal": [12, 14, 18],
+#     "axon": [int(a) for a in range(6, 15)],
+#     "soma": [int(a) for a in range(1, 6)],
+# }
 
-idsofpart_grc = {  # for sbem2 map (what a pain! )
+idsofpart_sbem3 = {  # for sbem2 map (what a pain! )
     "dendrite": [int(x) for x in np.arange(23, 35)],
     "distal": [26],
     "axon": [int(x) for x in np.arange(6, 15)],

@@ -38,15 +38,15 @@ section_colors = {
     "Soma_spine": "baby blue",
 
 # Dendrites
-    "apic": "ochre",
-    "apical": "ochre",
-    "Dendrite_apical": "ochre",
-    "Distal_Dendrite": "ochre",
-    "Dendrite_distal": "ochre",
+    "apic": "beige",
+    "apical": "beige",
+    "Dendrite_apical": "beige",
+    "Distal_Dendrite": "beige",
+    "Dendrite_distal": "beige",
     "dend": "grey",
     "dendrite": "grey",
-    "Proximal_Dendrite": "dark blue",
-    "Dendrite_proximal": "dark blue",
+    "Proximal_Dendrite": "teal",
+    "Dendrite_proximal": "teal",
     "basal": "magenta",
     "basal_dendrite": "magenta",
     "Dendrite_basal": "magenta",
@@ -61,7 +61,7 @@ section_colors = {
     "Dendrite_undefined_3": "darkgrey",
     
     # granule cell
-    "primarydendrite": "dark blue",
+    "primarydendrite": "teal",
     "Dendrite_preclaw": "powder blue",
     "Dendrite_claw": "light blue",
     "Dendritic_Claw": "light blue",
@@ -80,9 +80,9 @@ section_colors = {
     "Terminal_stalk": "yellow",
     "Terminal_neck": "brown",
     "Terminal_branch": "blue",
-    "Terminal_undefined_1": "white",
-    "Terminal_undefined_2": "white",
-    "Terminal_undefined_3": "white",
+    "Terminal_undefined_1": "blue",
+    "Terminal_undefined_2": "blue",
+    "Terminal_undefined_3": "blue",
     
     # astrocytes
     "Astrocyte_soma": "orange",
@@ -96,7 +96,7 @@ section_colors = {
     "dend1_*": "magenta",
     "dend2_*": "yellow",
     "dend3_*": "dandelion",
-    "dend4_*": "ochre",
+    "dend4_*": "beige",
     "apic": "dandelion",
     "dend_1*": "red",
     "dend_2*": "orange",

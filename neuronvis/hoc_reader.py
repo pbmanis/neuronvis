@@ -25,18 +25,20 @@ class HocReader(object):
         hoc: object,
         somaonly: bool = False,
         center: bool = False,
+        scale: dict = {'x': 1.0, 'y': 1.0, 'z': 1.0, 'r': 1.0},
         section_map: str = "swc",
         verify: bool = False,
     ) -> None:
         self.file_loaded = False
         self.center = center
-        print("HocReader reading file:", hoc)
-        print("centering: ", self.center)
+        self.centerpos = {'x': 0., 'y': 0., 'z': 0.}
+        self.scale = scale
+        print("HocReader:: Reading file:", hoc)
         if isinstance(hoc, str) or isinstance(hoc, Path):  # only python 3 anymore
             success = 0
             fullfile = Path(os.getcwd(), hoc)
             if not fullfile.exists():
-                raise Exception("File not found: %s" % (str(fullfile)))
+                raise Exception("HodReader:: File not found: %s" % (str(fullfile)))
             if fullfile.suffix in [".hoc", ".hocx"]:
                 neuron.h.hoc_stdout(
                     "/dev/null"
@@ -44,31 +46,35 @@ class HocReader(object):
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
             elif fullfile.suffix in [".swc"]:
-                s = swc_to_hoc.SWC(filename=fullfile, section_map=section_map, center=self.center, verify=verify)
+                s = swc_to_hoc.SWC(filename=fullfile, section_map=section_map, center=self.center, 
+                                   scalexyzr=self.scale, verify=verify)
+                self.centerpos = s.centerpos
                 hocl = s.write_hoc(None)
                 hocstr = ""
                 for i in range(len(hocl)):
                     hocstr += hocl[i] + "\n"
                 if verify:
                     print(hocstr)
-                neuron.h.hoc_stdout(
-                    "/dev/null"
-                )  # prevent junk from printing while reading the file
-                neuron.h(hocstr)
-                neuron.h.hoc_stdout()
+                # neuron.h.hoc_stdout(
+                #     "/dev/null"
+                # )  # prevent junk from printing while reading the file
+                # neuron.h(hocstr)
+                # neuron.h.hoc_stdout()
                 success = 1
             else:
                 raise ValueError(
-                    "File must be a hoc file; use read_swc_cells or swc_to_hoc to convert files"
+                    "HocReader:: File must be a hoc file; use read_swc_cells or swc_to_hoc to convert files"
                 )
             if success == 0:  # indicates failure to read the file
-                raise NameError("Found file, but NEURON load failed: %s" % (fullfile))
+                raise NameError("HocReader:: Found file, but NEURON load failed: %s" % (fullfile))
             self.file_loaded = True
             self.h = h  # save a copy of the hoc object itself.
 
         else:
             self.h = hoc  # just use the passed argument
             self.file_loaded = True
+        print("File read and file_loaded is: ", self.file_loaded)
+        
         # geometry containers
         self.edges = None
         self.vertexes = None
@@ -84,24 +90,26 @@ class HocReader(object):
         self.sec_groups = {}
 
         # populate self.sections and self.mechanisms
+        print("Reading section info:")
         self._read_section_info()
 
         # auto-generate section groups based on either hoc section lists, or
         # on section name prefixes.
         sec_lists = self.get_section_lists()
         sec_prefixes = self.get_section_prefixes()
-
+        # print("HocReader:: Found section lists: ", sec_lists)
+        # print("HocReader:: Found section prefixes: ", sec_prefixes
+        #       )
         # Add groupings by section list if possible:
         if len(sec_lists) > 1:
-            print("Grouping by list")
             self.add_groups_by_section_list(sec_lists)
 
         # Otherwise, try section prefixes
         elif len(sec_prefixes) > 1:
-            print("grouping by prefixes")
             for group, sections in sec_prefixes.items():
                 self.add_section_group(group, sections)
 
+    
     def update(self) -> None:
         """
         Update information on sections after external changes
@@ -130,7 +138,7 @@ class HocReader(object):
              'soma': ['soma[0]']}
         """
         prefixes = {}
-        regex = re.compile("(?P<prefix>\w+)\[(\d*)\]")
+        regex = re.compile(r"(?P<prefix>\w+)\[(\d*)\]")
         for sec_name in self.sections:
             g = regex.match(sec_name)
             if g is None:
@@ -151,7 +159,7 @@ class HocReader(object):
              'section[2]': 'soma'}
         """
         secprefixes = {}
-        regex = re.compile("(?P<prefix>\w+)\[(\d*)\]")
+        regex = re.compile(r"(?P<prefix>\w+)\[(\d*)\]")
 
         for sec_name in self.sections:
             secprefixes[sec_name] = None
@@ -237,8 +245,10 @@ class HocReader(object):
             self.sec_index[sec.name()] = i
             mechs = set()
             for seg in sec:
-                for mech in seg:
-                    mechs.add(mech.name())
+                pass
+             # for iseg, mech in enumerate(seg):
+                #     print("  mech: ", mech)
+                #     mechs.add(mech.name())
             self.mechanisms[sec.name()] = mechs
 
     def hoc_namespace(self) -> dict:
@@ -420,7 +430,7 @@ class HocReader(object):
         return (np.array(x), np.array(y), np.array(z), np.array(d))
 
     def make_volume_data(
-        self, resolution: float = 0.4, max_size: float = 200e6
+        self, resolution: float = 0.4, max_size: float = 500e6
     ) -> tuple:
         """
         Using the current state of vertexes, edges, generates a scalar field
