@@ -1,14 +1,9 @@
 from __future__ import absolute_import, print_function
 
-import typing
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Union
 
-import numpy as np
 import pyqtgraph as pg
-import vispy
-from matplotlib import pyplot as mpl
 from pyqtgraph.Qt import QtGui
 
 from . import hoc_graphics as HG
@@ -35,13 +30,12 @@ try:
             res = orig_util_find_library(name)
             if res:
                 return res
-            # return '/System/Library/Frameworks/'+name+'.framework/'+name
-            return "/System/Library/Frameworks/{}.framework/{}".format(name, name)
+            return f"/System/Library/Frameworks/{name}.framework/{name}"
 
         util.find_library = new_util_find_library
         from OpenGL import GL as OGL
 except ImportError:
-    print("Import of optngl Failed")
+    print("Import of OpenGL Failed")
     pass
 
 from pyqtgraph import opengl as gl
@@ -143,7 +137,6 @@ class HocViewer(gl.GLViewWidget):
         self.flags = flags
         self.camerapos = camerapos
         self.video_file = None
-        print("hocviewer got Renderer: ", renderer)
 
         # set up for each specific renderer
         if renderer == "pyqtgraph" and fighandle == None:
