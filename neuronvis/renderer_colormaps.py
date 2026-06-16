@@ -30,12 +30,20 @@ section_colors = {
     "Axon_heminode": "light blue",
     "unmyelinatedaxon": "light cyan",
     "Unmyelinated_Axon": "light cyan",
+    "Axon_unmyelinated": "light cyan",
+    "Axon_spine": "dark blue",
     "Axon_en_passant_synapse": "blue green",
+    "Terminal_swelling": "magenta",
 
     "soma": "dark grey",
     "Soma": "dark grey",
     "somatic": "dark grey",
     "Soma_spine": "baby blue",
+    "Cilium": "white",
+    "Soma_undefined_1": "dark grey",
+    "Soma_undefined_2": "dark grey",
+    "Soma_undefined_3": "dark grey",
+
 
 # Dendrites
     "apic": "beige",
@@ -56,9 +64,12 @@ section_colors = {
     "Dendritic_Swelling": "yellow",
     "Dendritic_Hub": "neon red",
     "Dendrite_hub": "neon red",  # "wintergreen",
-    "Dendrite_undefined_1": "darkgrey",
-    "Dendrite_undefined_2": "darkgrey",
-    "Dendrite_undefined_3": "darkgrey",
+    # "Dendrite_undefined_1": "darkgrey",  # Claude fixed 2026-06-16: "darkgrey" not in xkcd; xkcd uses "dark grey"
+    # "Dendrite_undefined_2": "darkgrey",  # Claude fixed 2026-06-16: same
+    # "Dendrite_undefined_3": "darkgrey",  # Claude fixed 2026-06-16: same
+    "Dendrite_undefined_1": "dark grey",
+    "Dendrite_undefined_2": "dark grey",
+    "Dendrite_undefined_3": "dark grey",
     
     # granule cell
     "primarydendrite": "teal",
