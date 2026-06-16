@@ -1,9 +1,10 @@
 from __future__ import absolute_import, print_function
 
+import typing
 from dataclasses import dataclass, field
 from pathlib import Path
-import typing
 from typing import Union
+
 import numpy as np
 import pyqtgraph as pg
 import vispy
@@ -50,14 +51,14 @@ from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 class GLAxisItem_r(GLGraphicsItem):
     """
     **Bases:** :class:`GLGraphicsItem <pyqtgraph.opengl.GLGraphicsItem>`
-    
-    Displays three lines indicating origin and orientation of local coordinate system. 
-    
+
+    Displays three lines indicating origin and orientation of local coordinate system.
+
     """
 
     def __init__(
         self,
-        size:Union[object, None] = None,
+        size: Union[object, None] = None,
         antialias: bool = True,
         glOptions: str = "translucent",
     ) -> None:
@@ -143,10 +144,12 @@ class HocViewer(gl.GLViewWidget):
         self.camerapos = camerapos
         self.video_file = None
         print("hocviewer got Renderer: ", renderer)
-        
+
         # set up for each specific renderer
         if renderer == "pyqtgraph" and fighandle == None:
-            self.win = pg.mkQApp()  # make sure there is a QApplication before instantiating any QWidgets.
+            self.win = (
+                pg.mkQApp()
+            )  # make sure there is a QApplication before instantiating any QWidgets.
             # self.win.setStyle("fusion")
             dark_palette = QtGui.QPalette()
             white = QtGui.QColor(255, 255, 255)
@@ -171,7 +174,7 @@ class HocViewer(gl.GLViewWidget):
             super(HocViewer, self).__init__()
             # self.resize(figsize)
             # self.win.setBackcolor(pg.glColor(pg.mkColor(200, 200, 200, 255)))
-            # self.win.setStyleSheet("{background-color: white;}") 
+            # self.win.setStyleSheet("{background-color: white;}")
             self.show()
             self.setWindowTitle("hocViewer")
             self.setCameraPosition(
@@ -182,50 +185,50 @@ class HocViewer(gl.GLViewWidget):
             # print("color in ax: ", self.ax.property('color'))
             self.addItem(self.ax)
             self.ax.setSize(10, 10, 10)
-            
+
             self.grid = HG.HocGrid()
             self.graphics.append(self.grid)
             xlabel = gl.GLTextItem()
-            xlabel.setData(pos=(10, 0, 0), text="X (10)", color='c')
+            xlabel.setData(pos=(10, 0, 0), text="X (10)", color="c")
             ylabel = gl.GLTextItem()
-            ylabel.setData(pos=(0, 10, 0), text="Y (10)", color='y')
+            ylabel.setData(pos=(0, 10, 0), text="Y (10)", color="y")
             zlabel = gl.GLTextItem()
-            zlabel.setData(pos=(0, 0, 10), text="Z (10)", color='g')
+            zlabel.setData(pos=(0, 0, 10), text="Z (10)", color="g")
             self.addItem(xlabel)
             self.addItem(ylabel)
             self.addItem(zlabel)
             gl.GLGridItem(color=pg.mkColor(128, 128, 128))
 
-            self.grid.setSize(x=200., y=200., z=200.)  # 100 um grid spacing
+            self.grid.setSize(x=200.0, y=200.0, z=200.0)  # 100 um grid spacing
             dlx = gl.GLTextItem()
-            dlx.setData(pos=(200, 0, 0), text="X (100/10)", color='c')
+            dlx.setData(pos=(200, 0, 0), text="X (100/10)", color="c")
             self.addItem(dlx)
-            self.grid.setSpacing(x=10., y=10., z=10.)  # 10 um steps
-            self.grid.scale(1,1,1)  # uniform scale
-            self.grid.translate(0., 0., 0.)
+            self.grid.setSpacing(x=10.0, y=10.0, z=10.0)  # 10 um steps
+            self.grid.scale(1, 1, 1)  # uniform scale
+            self.grid.translate(0.0, 0.0, 0.0)
             self.grid.setGLOptions("translucent")
             self.addItem(self.grid)
             self.grid.setColor(pg.mkColor(0, 255, 255, 128))  # magenta grid
-      
+
             self.grid1 = HG.HocGrid()
             self.graphics.append(self.grid1)
             glx = gl.GLTextItem()
-            glx.setData(pos=(1000, 0, 0), text="X (2000/100)", color='c')
+            glx.setData(pos=(1000, 0, 0), text="X (2000/100)", color="c")
             self.addItem(glx)
-            self.grid1.setSize(x=2000., y=2000., z=2000.)
-            self.grid1.setSpacing(x=100., y=100., z=100.)
+            self.grid1.setSize(x=2000.0, y=2000.0, z=2000.0)
+            self.grid1.setSpacing(x=100.0, y=100.0, z=100.0)
             self.grid1.scale(1, 1, 1)
-            self.grid1.translate(0., 0., 0.)
+            self.grid1.translate(0.0, 0.0, 0.0)
             # self.grid2.setGLOptions("translucent")
             self.grid1.setColor(pg.mkColor(255, 255, 0, 128))
             self.addItem(self.grid1)
 
             self.grid2 = HG.HocGrid()
             self.graphics.append(self.grid2)
-            self.grid2.setSize(x=2000., y=2000., z=2000.)
-            self.grid2.setSpacing(x=100., y=100., z=100.)
+            self.grid2.setSize(x=2000.0, y=2000.0, z=2000.0)
+            self.grid2.setSpacing(x=100.0, y=100.0, z=100.0)
             self.grid2.scale(1, 1, 1)
-            self.grid2.translate(0., 0, 0.)
+            self.grid2.translate(0.0, 0, 0.0)
             self.grid2.rotate(-90, 0, 1, 0)  # rotate around x-axis
             # self.grid2.setGLOptions("translucent")
             self.grid2.setColor(pg.mkColor(0, 255, 0, 128))
@@ -233,15 +236,14 @@ class HocViewer(gl.GLViewWidget):
 
             self.grid3 = HG.HocGrid()
             self.graphics.append(self.grid3)
-            self.grid3.setSize(x=2000., y=2000., z=2000.)
-            self.grid3.setSpacing(x=100., y=100., z=100.)
+            self.grid3.setSize(x=2000.0, y=2000.0, z=2000.0)
+            self.grid3.setSpacing(x=100.0, y=100.0, z=100.0)
             self.grid3.scale(1, 1, 1)
-            self.grid3.translate(0., 0., 0.)
+            self.grid3.translate(0.0, 0.0, 0.0)
             self.grid3.rotate(-90, 1, 0, 0)
             # self.grid2.setGLOptions("translucent")
             self.grid3.setColor(pg.mkColor(0, 0, 255, 128))
             self.addItem(self.grid3)
-
 
         elif renderer == "mayavi" and fighandle == None:
             fighandle = mlab.figure(
@@ -258,10 +260,9 @@ class HocViewer(gl.GLViewWidget):
         elif renderer == "vispy" and fighandle == None:
             from vispy import scene
 
-            canvas = scene.SceneCanvas(keys="interactive", show=True,)
+            canvas = scene.SceneCanvas(keys="interactive", show=True)
             view = canvas.central_widget.add_view()
             super(HocViewer, self).__init__()
-
 
     def mouse_released(self, event: object) -> None:
         print("released, event = ", event)
@@ -350,7 +351,7 @@ class HocViewer(gl.GLViewWidget):
         HocCylinders instance
         """
 
-        g = HG.HocCylinders(self.hr) 
+        g = HG.HocCylinders(self.hr)
         self.graphics.append(g)
         self.addItem(g)
         return g
@@ -400,10 +401,12 @@ class HocViewer(gl.GLViewWidget):
         mechanism: Union[str, None] = None,
         color: Union[list, tuple, None] = None,
         state: Union[dict, None] = None,
-        title: str = "vispy Cylinders"
+        title: str = "vispy Cylinders",
+        headlight: bool = True,
     ) -> None:
-        HG.vispy_Cylinders(self.hr, mechanism=mechanism, color=color, state=state,
-        title=title)
+        HG.vispy_Cylinders(
+            self.hr, mechanism=mechanism, color=color, state=state, title=title, headlight=headlight
+        )
 
     def save_frame(self, file_name: Union[str, None] = None) -> None:
         """
@@ -422,9 +425,7 @@ class HocViewer(gl.GLViewWidget):
         """
         if file_name is None:
             if self.video_file is None:
-                raise Exception(
-                    "No file name specified and no video storage in progress."
-                )
+                raise Exception("No file name specified and no video storage in progress.")
             img = pg.imageToArray(self.readQImage())
             self.video_file.write(img)
         else:
