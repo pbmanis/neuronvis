@@ -22,7 +22,7 @@ Portions of this code were taken from neuronvisio (http://neuronvisio.org), spec
 the hoc file connection structure (specifically: getSectionInfo, and parts of drawModel).
 
 Example usage:
-hocRender VCN_Rostral_P60_Granule_Cell_Node_List_06-202500000.swc --secmap sbem3 -r pyqtgraph -s cylinders 
+hocRender VCN_Rostral_P60_Granule_Cell_Node_List_06-202500000.swc --secmap sbem3 -r pyqtgraph -s cylinders
     -p new_counting_points.csv -m sec-type --sx 0.024 --sy 0.024 --sz 0.07
 
 Reads the swc file, renders it as cylinders using pyqtgraph, colors the sections by type using the "SBEM3" section map,
@@ -38,31 +38,29 @@ and plots the points from the csv file "new_counting_points.csv" as green sphere
 
 """
 
+import argparse
 import os
 import sys
-import pickle
-from pathlib import Path
-import argparse
-from dataclasses import dataclass
 from dataclasses import dataclass, field
-from typing import Union, Dict, List
+from pathlib import Path
+from typing import Union
+
 import pandas as pd
 
 os.environ["PYQTGRAPH_QT_LIB"] = "PyQt6"
-import pyqtgraph as pg
-from pyqtgraph import opengl as opengl
-from pyqtgraph import QtGui
-
 # from mayavi import mlab
 import numpy as np
-
+import pyqtgraph as pg
 from pylibrary.tools import fileselector
+from pyqtgraph import QtGui
+from pyqtgraph import opengl as opengl
+
+import neuronvis.renderer_colormaps as rc
 
 # import here so we can parse display_modes more quickly
 # (and without neuron garbage)
 from .hoc_reader import HocReader
 from .hoc_viewer import HocViewer
-import neuronvis.renderer_colormaps as rc
 
 section_colors = rc.section_colors
 
@@ -89,7 +87,7 @@ display_renderers = {
 }
 
 
-# Handle display_modes
+# Handle and render multiple display_modes
 
 
 class Render(object):
@@ -104,7 +102,7 @@ class Render(object):
         fighandle: Union[object, None] = None,
         sim_data: Union[Path, str, None] = None,
         points: Union[Path, str, None] = None,
-        scalexyzr: dict = {'x': 1.0, 'y': 1.0, 'z': 1.0, 'r': 1.0},  # scale x, y, z and r
+        scalexyzr: dict = {"x": 1.0, "y": 1.0, "z": 1.0, "r": 1.0},  # scale x, y, z and r
         initial_view: list = [200.0, 0.0, 0.0],
         figsize: list = [1000.0, 1000.0],
         output_file: Union[Path, str, None] = None,
@@ -143,25 +141,21 @@ class Render(object):
         self.alpha = alpha
         self.verify = verify
         self.state = state  # vispy object state for display turntable
-        print("calling HocReader")
         hoc = HocReader(
-            hoc_file, somaonly=somaonly, section_map=section_map, center=self.center, 
-            scale = self.scalexyzr, verify=verify
+            hoc_file,
+            somaonly=somaonly,
+            section_map=section_map,
+            center=self.center,
+            scale=self.scalexyzr,
+            verify=verify,
         )
-        print("read ok")
         if self.points is not None:
             self.counting_point_data = pd.read_csv(self.points)
-            print("hoc centerpos: ", hoc.centerpos)
-            self.counting_point_data['x'] -= hoc.centerpos['x']
-            self.counting_point_data['y'] -= hoc.centerpos['y']
-            self.counting_point_data['z'] -= hoc.centerpos['z']
-            print("Point data: ")
-            print(self.counting_point_data)
+            self.counting_point_data["x"] -= hoc.centerpos["x"]
+            self.counting_point_data["y"] -= hoc.centerpos["y"]
+            self.counting_point_data["z"] -= hoc.centerpos["z"]
         else:
             self.counting_point_data = None
-        
-
-
 
         title = str(Path(hoc_file).name)
         self.view = HocViewer(
@@ -171,9 +165,9 @@ class Render(object):
             figsize=figsize,
             fighandle=fighandle,
         )
-        print("section_map: ", section_map)
-        print("display_style: ", display_style)
-        print("renderer: ", self.renderer)
+        # print("section_map: ", section_map)
+        # print("display_style: ", display_style)
+        # print("renderer: ", self.renderer)
         match display_style:
             case "volume":
                 if self.renderer == "pyqtgraph":
@@ -214,7 +208,6 @@ class Render(object):
                 elif self.renderer == "mpl":
                     g = self.view.draw_mpl_graph(fax=fax)
                     if self.points is not None and self.counting_point_data is not None:
-                        print(fax[1])
                         fax[1].scatter(
                             self.counting_point_data["x"],
                             self.counting_point_data["y"],
@@ -234,27 +227,29 @@ class Render(object):
                     g.setShader("balloon")
                     # g.setGLOptions("additive")
                     self.color_map(g, display_mode, mechanism=mechanism, alpha=self.alpha)
-                    print("points? : ", self.points)
                     if self.points is not None and self.counting_point_data is not None:
-                        # print("pointdata: ", self.counting_point_data)
 
-
-                        if 'darwin' in sys.platform:
+                        if "darwin" in sys.platform:
                             print("Darwin detected, setting OpenGL format")
                             fmt = QtGui.QSurfaceFormat()
                             fmt.setRenderableType(fmt.RenderableType.OpenGL)
                             fmt.setProfile(fmt.OpenGLContextProfile.CoreProfile)
                             fmt.setVersion(4, 1)
                             QtGui.QSurfaceFormat.setDefaultFormat(fmt)
-                            
-                        presyns = np.array([self.counting_point_data["x"], self.counting_point_data["y"], self.counting_point_data["z"]]).T
+
+                        presyns = np.array(
+                            [
+                                self.counting_point_data["x"],
+                                self.counting_point_data["y"],
+                                self.counting_point_data["z"],
+                            ]
+                        ).T
                         colors = [pg.mkColor(c) for c in self.counting_point_data["color"].values]
                         self.pg_SP = opengl.GLScatterPlotItem(
-                            pos= presyns,
+                            pos=presyns,
                             size=1,
                             color=colors[0],
                             pxMode=False,
-
                         )
 
                         self.view.addItem(self.pg_SP)
@@ -272,7 +267,11 @@ class Render(object):
                         )
                 elif self.renderer == "vispy":
                     g = self.view.draw_vispy(
-                        mechanism=mechanism, color=section_colors, state=self.state, title=title
+                        mechanism=mechanism,
+                        color=section_colors,
+                        state=self.state,
+                        title=title,
+                        headlight=True,
                     )
 
                 elif self.renderer == "mayavi":
@@ -295,12 +294,13 @@ class Render(object):
             if self.sim_data is None:
                 raise Exception("Cannot render Vm: no simulation output specified.")
 
-            surf = self.view.draw_surface()
-            start = 375
-            stop = 550
-            index = start
-            loopCount = 0
-            nloop = 1
+            # unused variables?
+            # surf = self.view.draw_surface()
+            # stop = 550
+            # index = start
+            # loopCount = 0
+            # nloop = 1
+            # start = 375
 
         if self.renderer == "pyqtgraph":
 
@@ -308,18 +308,14 @@ class Render(object):
 
             if output_file is not None:
                 print(f"Saving to outputfile: {str(output_file):s}")
-                # print(dir(self.view))
                 img = pg.makeQImage(self.view.renderToArray(size=figsize))
                 img.save(output_file)
             elif sys.flags.interactive == 0:
                 pg.Qt.QtGui.QGuiApplication.exec()
 
         if self.renderer == "mayavi":
-
-            print("outputfile: ", output_file)
             if output_file is not None:
                 print(f"Saving mayvi rendering to outputfile: {str(output_file):s}")
-                # print(dir(self.view))
                 f = mlab.gcf()
                 mlab.savefig(output_file, figure=f, magnification=1.0)  # size=(1000, 1000))
             else:
@@ -339,23 +335,21 @@ class Render(object):
         colors: dict = section_colors,
         alpha: float = 1.0,
     ) -> None:
-        print("set color map")
-        # print("colors: ", colors)
         assert g is not None
 
         if display_mode == "sec-type":
-            print("sec type with alpha: ", alpha, self.renderer)
             if self.renderer == "pyqtgraph":
                 g.set_group_colors(colors, alpha=alpha)
                 # self.view.setBackground(0xddddddff)
             elif self.renderer == "mayavi":
-                print("set sectype colors mayavi")
+                pass
                 # g.set_group_colors(colors, alpha=alpha)
 
         elif display_mode == "mechanism" and (mechanism != "None" or mechanism is not None):
-            print("Setting color map by mechanism: ", mechanism)
             if self.renderer == "pyqtgraph":
                 g.set_group_colors(colors, mechanism=mechanism)
+            else:
+                raise ValueError("Can only render mechanism density with pyqtgraph")
 
     def vm_to_color(self, v: np.ndarray) -> np.ndarray:
         """
@@ -422,6 +416,7 @@ class Render(object):
 
 def main() -> None:
     import sys
+
     parser = argparse.ArgumentParser(
         description="Hoc Rendering",
         argument_default=argparse.SUPPRESS,
@@ -474,7 +469,7 @@ def main() -> None:
         "-m",
         dest="display_mode",
         action="store",
-        default="None",
+        default="sec-type",
         choices=["vm", "sec-type", "mechanism"],
         help="Select the display mode (default: None)",
     )
@@ -504,14 +499,14 @@ def main() -> None:
         type=float,
         default=1.0,
         help="Scale the rendering by this factor (default: 1.0)",
-    )   
+    )
     parser.add_argument(
         "--sx",
         dest="scalex",
         type=float,
         default=1.0,
         help="Scale the X rendering by this factor (default: 1.0)",
-    )   
+    )
     parser.add_argument(
         "--sy",
         dest="scaley",
@@ -525,14 +520,14 @@ def main() -> None:
         type=float,
         default=1.0,
         help="Scale the Z rendering by this factor (default: 1.0)",
-    )   
+    )
     parser.add_argument(
         "--sr",
         dest="scaler",
         type=float,
         default=1.0,
         help="Scale the swc radius rendering by this factor (default: 1.0)",
-    )   
+    )
 
     parser.add_argument(
         "--alpha",
@@ -589,9 +584,12 @@ def main() -> None:
         display_style=args["display_style"],
         display_renderer=args["display_renderer"],
         center=args["center"],
-
-        scalexyzr = {'x': args.get("scalex", 1.0), 'y': args.get("scaley", 1.0),
-                      'z': args.get("scalez", 1.0), 'r': args.get("scaler", 1.0)},
+        scalexyzr={
+            "x": args.get("scalex", 1.0),
+            "y": args.get("scaley", 1.0),
+            "z": args.get("scalez", 1.0),
+            "r": args.get("scaler", 1.0),
+        },
         display_mode=args["display_mode"],
         mechanism=args["mechanism"],
         alpha=args["alpha"],
