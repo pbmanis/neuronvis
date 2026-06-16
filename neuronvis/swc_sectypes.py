@@ -4,6 +4,7 @@ sec_types.py : define section types for various mappings.
 """
 import numpy as np
 
+all_sectypes = ["swc_sectypes", "sbem_sectypes", "sbem2_sectypes", "sbem3_sectypes", "sbem4_sectypes", "grc_swc_sectypes"]
 # standard SWC types:
 swc_sectypes = {
     #  0: 'undefined',
@@ -102,12 +103,12 @@ sbem2_sectypes = {
 sbem3_sectypes = {
 0	: "Undefined",
 1	: "Soma",
-2	: "Soma_spine",
-3	: "Soma_undefined_1",
-4	: "Soma_undefined_2",
-5	: "Soma_undefined_3",
-6	: "Axon_hillock",
-7	: "Axon_initial_segment",
+2	: "Soma_spine",  # axon
+3	: "Soma_undefined_1",  # basal dendrite
+4	: "Soma_undefined_2",  # apical dendrite
+5	: "Soma_undefined_3",  # custom
+6	: "Axon_hillock",   # unspecified neurite
+7	: "Axon_initial_segment",  # glial process
 8	: "Axon_myelinated_segment",
 9	: "Axon_node",
 10	: "Axon_heminode",
@@ -143,6 +144,67 @@ sbem3_sectypes = {
 40	: "Astrocyte_vellus_process",
 41	: "Astrocyte_blood_brain_barrier",
 42	: "Astrocyte_undefined",
+}
+
+
+# List of Nodes (Spirou, 2026)
+# The first 7 are the standard types for the SWC definition.
+# The remainder provide finer-grained definitions of the various parts of the axon, dendrite and soma, as well as some glial types. 	
+# Except for the Soma, the first 7 should not be used if the there are 
+# more specific definitions available. For example, if the axon hillock is defined, then the axon type should not be used for that section.
+# note also that spaces are used in the names of the first 7, but underscores are used in the more specific definitions.
+
+
+sbem4_sectypes = {
+0	: "Undefined",
+1	: "Soma",
+2	: "Axon",
+3	: "Basal dendrite",
+4	: "Apical dendrite",
+5	: "Custom",
+6	: "Unspecified neurite",
+7	: "Glial process",
+8	: "Axon_myelinated_segment",
+9	: "Axon_node",
+10	: "Axon_heminode",
+11	: "Axon_spine",
+12	: "Axon_unmyelinated",
+13	: "Axon_undefined_1",
+14	: "Axon_undefined_2",
+15	: "Terminal",
+16	: "Terminal_stalk",
+17	: "Terminal_swelling",
+18	: "Terminal_neck",
+19	: "Terminal_branch",
+20	: "Terminal_undefined_1",
+21	: "Terminal_undefined_2",
+22	: "Terminal_undefined_3",
+23	: "Dendrite_basal",
+24	: "Dendrite_apical",
+25	: "Dendrite_proximal",
+26	: "Dendrite_distal",
+27	: "Dendrite_spine",
+28	: "Dendrite_hub",
+29	: "Dendrite_swelling",
+30	: "Dendrite_preclaw",
+31	: "Dendrite_claw",
+32	: "Dendrite_undefined_1",
+33	: "Dendrite_undefined_2",
+34	: "Dendrite_undefined_3",
+35	: "Neurite",
+36  : "Cilium",
+37	: "Astrocyte_soma",
+38	: "Astrocyte_primary_branch",
+39	: "Astrocyte_distal_process",
+40	: "Astrocyte_vellus_process",
+41	: "Astrocyte_blood_brain_barrier",
+42	: "Astrocyte_undefined",
+43	: "Soma_spine",
+44	: "Soma_undefined_1",
+45	: "Soma_undefined_2",
+46	: "Soma_undefined_3",
+47	: "Axon_hillock",
+48	: "Axon_initial_segment",
 }
 
 
@@ -206,6 +268,20 @@ idsofpart_sbem3 = {  # for sbem2 map (what a pain! )
     "astrocyte": [int(x) for x in np.arange(36, 41)],
 }
 
+idsofpart_sbem4 = {  # for sbem4 map (what a pain! )
+    "dendrite": [int(x) for x in np.arange(23, 35)],
+    "distal": [26],
+    "axon": [int(x) for x in np.arange(6, 15)],
+    "terminal": [int(x) for x in np.arange(15, 23)],
+    "soma": [int(x) for x in np.arange(1,6)],
+    "astrocyte": [int(x) for x in np.arange(36, 41)],
+}
+# add the out of order parts.
+idsofpart_sbem4['soma'] += [int(x) for x in np.arange(43, 47)]
+idsofpart_sbem4['axon'] += [int(x) for x in np.arange(47, 49)]
+
+
+
 def get_partsof(sbem3_sectypes):
     parts = {}
     for k, v in sbem3_sectypes.items():
@@ -252,5 +328,6 @@ sectypes = {"swc": swc_sectypes, # original definitions
             "sbem": sbem_sectypes, # bushy cell definitions
             "sbem2": sbem2_sectypes, # bushy cell definitions
             "sbem3": sbem3_sectypes, # second block, small-cell cap definitions
+            "sbem4": sbem4_sectypes, # third block, small-cell cap definitions revised to keep original SWC types in 0-7
             "grc": sbem_sectypes, # granule cell definitions
 }
