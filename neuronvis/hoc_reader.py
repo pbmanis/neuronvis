@@ -25,15 +25,18 @@ class HocReader(object):
         hoc: object,
         somaonly: bool = False,
         center: bool = False,
-        scale: dict = {'x': 1.0, 'y': 1.0, 'z': 1.0, 'r': 1.0},
+        scale: dict = {"x": 1.0, "y": 1.0, "z": 1.0, "r": 1.0},
         section_map: str = "swc",
         verify: bool = False,
     ) -> None:
         self.file_loaded = False
         self.center = center
-        self.centerpos = {'x': 0., 'y': 0., 'z': 0.}
+        self.centerpos = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.scale = scale
         print("HocReader:: Reading file:", hoc)
+        fullfile = Path(
+            ""
+        )  # Claude fixed 2026-06-16: initialize so centering block always sees a defined suffix
         if isinstance(hoc, str) or isinstance(hoc, Path):  # only python 3 anymore
             success = 0
             fullfile = Path(os.getcwd(), hoc)
@@ -46,20 +49,30 @@ class HocReader(object):
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
             elif fullfile.suffix in [".swc"]:
-                s = swc_to_hoc.SWC(filename=fullfile, section_map=section_map, center=self.center, 
-                                   scalexyzr=self.scale, verify=verify)
+                s = swc_to_hoc.SWC(
+                    filename=fullfile,
+                    section_map=section_map,
+                    center=self.center,
+                    scalexyzr=self.scale,
+                    verify=verify,
+                )
                 self.centerpos = s.centerpos
-                hocl = s.write_hoc(None)
-                hocstr = ""
-                for i in range(len(hocl)):
-                    hocstr += hocl[i] + "\n"
+                # hocl = s.write_hoc(None)  # Claude fixed 2026-06-16: write_hoc return annotation is None; call make_hoc() directly
+                # hocstr = ""
+                # for i in range(len(hocl)):
+                #     hocstr += hocl[i] + "\n"
+                hocstr = "\n".join(
+                    s.make_hoc(verify)
+                )  # Claude fixed 2026-06-16: build HOC string directly
                 if verify:
                     print(hocstr)
-                # neuron.h.hoc_stdout(
-                #     "/dev/null"
-                # )  # prevent junk from printing while reading the file
-                # neuron.h(hocstr)
-                # neuron.h.hoc_stdout()
+                neuron.h.hoc_stdout(
+                    "/dev/null"
+                )  # Claude fixed 2026-06-16: suppress NEURON output during load
+                neuron.h(
+                    hocstr
+                )  # Claude fixed 2026-06-16: was commented out; SWC must be loaded into NEURON
+                neuron.h.hoc_stdout()  # Claude fixed 2026-06-16: restore stdout
                 success = 1
             else:
                 raise ValueError(
@@ -75,17 +88,24 @@ class HocReader(object):
             self.file_loaded = True
         if self.center:
             soma_found = False
+            x0, y0, z0 = (
+                0.0,
+                0.0,
+                0.0,
+            )  # Claude fixed 2026-06-16: initialize; set in loop when soma_found=True
             for i, sec in enumerate(self.h.allsec()):
                 if fullfile.suffix in [".hoc"]:
                     if sec.name() == "soma":
                         x0 = sec.x3d(0)
                         y0 = sec.y3d(0)
                         z0 = sec.z3d(0)
-                        # print("Centering soma at (%.2f, %.2f, %.2f)" % (x0, y0, z0)
-                        # )
                         soma_found = True
                         break
-                elif fullfile.suffix in [".swc"]    :
+                # elif fullfile.suffix in [".swc"]    :  # Claude fixed 2026-06-16: .hocx also uses sections[N] naming
+                elif fullfile.suffix in [
+                    ".swc",
+                    ".hocx",
+                ]:  # Claude fixed 2026-06-16: .hocx uses sections[N]; treat like .swc
                     if i == 0:  # assume the first section is soma
                         x0 = sec.x3d(0)
                         y0 = sec.y3d(0)
@@ -95,10 +115,20 @@ class HocReader(object):
                         soma_found = True
                         break
             if soma_found:
+                if (
+                    fullfile.suffix == ".hocx"
+                ):  # Claude fixed 2026-06-16: capture centerpos so counting-point offsets are applied
+                    self.centerpos = {"x": x0, "y": y0, "z": z0}
                 for sec in self.h.allsec():
                     for i in range(int(sec.n3d())):
-                        h.pt3dchange(i, sec.x3d(i)-x0, sec.y3d(i)-y0, sec.z3d(i)-z0, sec.diam3d(i), sec=sec)
-
+                        h.pt3dchange(
+                            i,
+                            sec.x3d(i) - x0,
+                            sec.y3d(i) - y0,
+                            sec.z3d(i) - z0,
+                            sec.diam3d(i),
+                            sec=sec,
+                        )
             else:
                 print(
                     "Warning: No soma section found, not centering the sections. "
@@ -111,7 +141,7 @@ class HocReader(object):
                 print("Available sections: ", secnames)
                 exit()
         print("File read and file_loaded is: ", self.file_loaded)
-        
+
         # geometry containers
         self.edges = None
         self.vertexes = None
@@ -134,9 +164,7 @@ class HocReader(object):
         # on section name prefixes.
         sec_lists = self.get_section_lists()
         sec_prefixes = self.get_section_prefixes()
-        # print("HocReader:: Found section lists: ", sec_lists)
-        # print("HocReader:: Found section prefixes: ", sec_prefixes
-        #       )
+
         # Add groupings by section list if possible:
         if len(sec_lists) > 1:
             self.add_groups_by_section_list(sec_lists)
@@ -146,7 +174,6 @@ class HocReader(object):
             for group, sections in sec_prefixes.items():
                 self.add_section_group(group, sections)
 
-    
     def update(self) -> None:
         """
         Update information on sections after external changes
@@ -215,9 +242,7 @@ class HocReader(object):
         """
         return self.mechanisms[section]
 
-    def get_density(
-        self, section: object, mechanism: str, value: str = "gbar"
-    ) -> float:
+    def get_density(self, section: object, mechanism: str, value: str = "gbar") -> float:
         """
         Get density mechanism that may be found the section.
         mechanism is a list ['name', 'gbarname']. This is needed because
@@ -233,7 +258,7 @@ class HocReader(object):
             None
         """
 
-        info = self.get_sec_info(section)
+        # info = self.get_sec_info(section)  # info is not used.
         gmech = []
         for seg in section:
             if mechanism in dir(seg):
@@ -281,9 +306,18 @@ class HocReader(object):
             self.sections[sec.name()] = sec
             self.sec_index[sec.name()] = i
             mechs = set()
-            for seg in sec:
-                for mech in seg:
-                    mechs.add(mech.name())
+            # Claude fixed 2026-06-16: the old NEURON 7.x mechanism iterator
+            #   for seg in sec:
+            #       for mech in seg:
+            #           mechs.add(mech.name())
+            # segfaults in NEURON >=9 on pure-morphology sections (no biophysics).
+            # Use psection() which returns a plain Python dict and is safe in all versions.
+            try:
+                psec = sec.psection()
+                for mech_name in psec.get("density_mechs", {}):
+                    mechs.add(mech_name)
+            except Exception:
+                pass  # section may have no mechanism info; leave mechs empty
 
             self.mechanisms[sec.name()] = mechs
 
@@ -336,14 +370,12 @@ class HocReader(object):
 
         """
         if name in self.sec_groups and not overwrite:
-            raise Exception(
-                "Group name %s is already used (use overwrite=True)." % name
-            )
-        group = [] # set()
+            raise Exception("Group name %s is already used (use overwrite=True)." % name)
+        group = []  # set()
         for sec in sections:
             if not isinstance(sec, str):
                 sec = sec.name()
-            group.append(sec) # group.add(sec)
+            group.append(sec)  # group.add(sec)
         self.sec_groups[name] = group
 
     def get_section_group(self, name: str) -> Union[list, None]:
@@ -401,11 +433,14 @@ class HocReader(object):
         self.h.define_shape()
 
         # map segments (lines) to the section that contains them
-        # self.segment_to_section = {}
 
         vertexes = []
         connections = []
         groupmap = self.retrieve_section_group()
+
+        sec_vertex_range: dict = (
+            {}
+        )  # Claude fixed 2026-06-16: track vertex range per section for inter-section edges
 
         secid = 0
         for sec in self.sections:
@@ -413,15 +448,43 @@ class HocReader(object):
             secv = self.sections[sec]
             x_sec, y_sec, z_sec, d_sec = self.retrieve_coordinate(secv)
             sectype = groupmap[sec]
-            # print(sectype)
+            first_idx = len(
+                vertexes
+            )  # Claude fixed 2026-06-16: record start index for this section
             for i, xi in enumerate(x_sec):
-                vertexes.append(
-                    ((x_sec[i], y_sec[i], z_sec[i]), d_sec[i], secid, str(sectype))
-                )
+                vertexes.append(((x_sec[i], y_sec[i], z_sec[i]), d_sec[i], secid, str(sectype)))
                 indx_geom_seg = len(vertexes) - 1
-                if len(vertexes) > 1 and i > 0:
+                # if len(vertexes) > 1 and i > 0:  # Claude fixed 2026-06-16: len check was redundant; i>0 is sufficient
+                if i > 0:  # Claude fixed 2026-06-16: only add within-section edges
                     connections.append([indx_geom_seg, indx_geom_seg - 1])
+            sec_vertex_range[sec] = (
+                first_idx,
+                len(vertexes) - 1,
+            )  # Claude fixed 2026-06-16: save range
             secid += 1
+
+        # Claude fixed 2026-06-16: add edges bridging the gap between each parent section's last
+        # vertex and each child section's first vertex.  In HOC the sections are connected
+        # topologically (via "connect" statements) but their pt3dadd coordinates don't overlap:
+        # the last 3D point of the parent and the first 3D point of the child are spatially
+        # adjacent but at distinct positions, so no within-section edge covers the junction.
+        for sec_name, secv in self.sections.items():
+            try:
+                parent_seg = secv.trueparentseg()
+            except Exception:
+                continue
+            if parent_seg is None:
+                continue
+            parent_sec_name = parent_seg.sec.name()
+            if parent_sec_name not in sec_vertex_range or sec_name not in sec_vertex_range:
+                continue
+            parent_last_idx = sec_vertex_range[parent_sec_name][1]
+            child_first_idx = sec_vertex_range[sec_name][0]
+            # Skip degenerate zero-length edges: singleton sections already have the parent's
+            # last pt3d duplicated as their own first pt3d (singleton repair in swc_to_hoc).
+            if not np.allclose(vertexes[parent_last_idx][0], vertexes[child_first_idx][0]):
+                connections.append([parent_last_idx, child_first_idx])
+
         self.edges = np.array(connections)
         self.vertexes = np.empty(
             len(vertexes),
@@ -441,8 +504,8 @@ class HocReader(object):
         sec.push()
         x, y, z, d = [], [], [], []
 
-        tot_points = 0
-        connect_next = False
+        # tot_points = 0  # not used?
+        # connect_next = False
         for i in range(int(self.h.n3d())):
             present = False
             x_i = self.h.x3d(i)
@@ -465,9 +528,7 @@ class HocReader(object):
         self.h.pop_section()
         return (np.array(x), np.array(y), np.array(z), np.array(d))
 
-    def make_volume_data(
-        self, resolution: float = 0.4, max_size: float = 500e6
-    ) -> tuple:
+    def make_volume_data(self, resolution: float = 0.4, max_size: float = 500e6) -> tuple:
         """
         Using the current state of vertexes, edges, generates a scalar field
         useful for building isosurface or volumetric renderings.
@@ -566,12 +627,8 @@ class HocReader(object):
                 sl1, sl2 = array_intersection(
                     scfield, kern, p1
                 )  # find the overlapping area between the field and the kernel
-                idfield[sl1] = np.where(
-                    scfield[sl1] > kern[sl2], idfield[sl1], sec_id[i]
-                )
-                scfield[sl1] = np.where(
-                    scfield[sl1] > kern[sl2], scfield[sl1], kern[sl2]
-                )
+                idfield[sl1] = np.where(scfield[sl1] > kern[sl2], idfield[sl1], sec_id[i])
+                scfield[sl1] = np.where(scfield[sl1] > kern[sl2], scfield[sl1], kern[sl2])
                 # stamp_array(scfield, kern, p1)
                 # stamp_array(idfield, kern, p1)
                 dia += (d[j] - d[i]) / nvoxels
