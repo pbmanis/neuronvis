@@ -37,7 +37,6 @@ try:
             res = orig_util_find_library(name)
             if res:
                 return res
-            # return '/System/Library/Frameworks/'+name+'.framework/'+name
             return "/System/Library/Frameworks/{}.framework/{}".format(name, name)
 
         util.find_library = new_util_find_library
@@ -136,7 +135,6 @@ def setMapColors(colormapname: str, reverse: bool = False) -> object:
             reverse=reverse,
             as_cmap=True,
         )
-    # elif colormapname == '
     return cm_sns
 
 
@@ -185,7 +183,6 @@ def scalebar(scene=None, length=20.0):
     y0 = [0.0, 0.0, -ext[1], ext[1], 0.0, 0.0]
     z0 = [0.0, 0.0, 0.0, 0.0, -ext[2], ext[2]]
     colc = [(1, 1, 1), (0, 1, 0), (0, 0, 1)]
-    # axisname = [f"x ({ext[0]:.0f})", 'y', 'z']
     axisl = ["x", "y", "z"]
     opacity = 1
     for j, i in enumerate([0, 2, 4]):
@@ -255,8 +252,8 @@ class HocGraphic(object):
             color_by_mechanism = False
         else:
             color_by_mechanism = True
-        # color sections for each "group" or identified cell part
 
+        # color sections for each "group" or identified cell part
         # for each structure named, get the name and the color from the dictionary
         for group_name, color in colors.items():
             # find which sections have that group name
@@ -272,7 +269,6 @@ class HocGraphic(object):
                 secnums = []
                 for s in sections:
                     secnum = re.match(r"^sections\[(?P<secnum>\d{1,4})\]$", s)
-                    # print(".>>>>", secnum, s)
                     if secnum is not None:
                         secnums.append(int(secnum.group("secnum")))
 
@@ -284,10 +280,6 @@ class HocGraphic(object):
                     ls = int(np.max(secnums))
                     n = len(secnums)
                     secs = f"{fs:d}:{ls:d} ({n:d})"  # sections[fs:ls+1]
-                # print('secnums: ', secnums, 'fs: ', fs, 'ls: ', ls)
-                print(
-                    f"Section type: {group_name:>32s}  color: {sec_color:<24s}. Sections: {secs:s}"
-                )
                 groups_found.append(group_name)
 
             for sec_name in sections:  # set base color value; if using mechanism, then set gbar
@@ -307,14 +299,10 @@ class HocGraphic(object):
             done = []
             for group_name, color in colors.items():
                 sections = self.h.get_section_group(group_name)
-                # print("group: ", group_name, "sections: ", sections)
                 if sections is None:
                     continue
-                # rgb = sec_colors[c][:3]/mechmax # cmap.map(sec_colors[c][3] / mechmax, "float")
-                # sec_colors[c][:3] = [x for x in sec_colors[c][:3]] # set colors
                 for sec_name in sections:
                     if sec_name not in done:
-                        # print(sec_name, sec_colors[sec_name][3], mechmax)
                         gbar = sec_colors[sec_name][3]
                         if gbar / mechmax > 0.02:
                             sec_colors[sec_name][:3] = list(
@@ -325,7 +313,6 @@ class HocGraphic(object):
                             ] = 0.8  # gbar/mechmax # sec_colors[sec_name][3] / mechmax
                         else:
                             sec_colors[sec_name] = [0.9, 0.9, 0.9, 0.8]
-                        # print(sec_colors[sec_name])
                         done.append(sec_name)
 
         self.sec_colors = sec_colors
@@ -380,7 +367,6 @@ class mplGraphic(object):
         sec_colors[:] = default_color
         mechmax = 0.0
         cmap = self.cmx
-        # print('set group colors')
         dsecs = []
         for group_name, color in colors.items():
             sections = self.h.get_section_group(group_name)
@@ -391,7 +377,6 @@ class mplGraphic(object):
                 if isinstance(color, str):
                     color = Colors[color]
                 index = self.h.sec_index[sec_name]
-                # print(index, color)
                 if mechanism is None:
                     sec_colors[index] = color
                 if mechanism not in [None, "None"]:
@@ -430,6 +415,7 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
     def __init__(self, hr: object):
         super(HocGraphic, self).__init__()
         self.hr = hr
+        self.h = hr  # Claude fixed 2026-06-16: alias so inherited HocGraphic methods (set_group_colors) can find the reader
 
         verts, edges = self.hr.get_geometry()
         verts["pos"] = verts["pos"]
@@ -484,13 +470,15 @@ class HocCylinders(HocGraphic, gl.GLMeshItem):
         )  # 'balloon') # 'shaded')
 
     def set_section_colors(self, sec_colors):
-        colors = [
-            sec_colors[f"sections[{s:d}]"]
+        default = np.array([0.5, 0.5, 0.5, 1.0], dtype=np.float32)
+        colors = np.array([
+            sec_colors[f"sections[{s:d}]"] if sec_colors[f"sections[{s:d}]"] is not None else default
             for s in self.vertex_sec_ids
-            if sec_colors[f"sections[{s:d}]"] is not None
-        ]
+        ], dtype=np.float32)
         self.opts["meshdata"].setVertexColors(colors, indexed="faces")
-        self.opts["meshdata"].setFaceColors(colors, indexed="faces")
+        # Claude fixed 2026-06-16: removed setFaceColors — it received (Nf*3,4) but expects
+        # (Nf,3,4); and hasVertexColor() takes precedence in GLMeshItem anyway.
+        # self.opts["meshdata"].setFaceColors(colors, indexed="faces")
         self.meshDataChanged()
 
 
@@ -1176,6 +1164,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         color: Union[str, list, None] = None,
         state: Union[dict, None] = None,
         title: str = "",
+        headlight: bool = True,
     ) -> None:
 
         self.h = h
@@ -1237,18 +1226,20 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
 
         start_pos = "root"
         if start_pos == "root":
-            print("vispy: Building morphology from root section")
-            root_section = None
-            # find the root section - which is the only section with no parent
-            for sec in self.h.h.allsec():
-                secinfo = sec.psection()
-                parent_sec = secinfo["morphology"]["trueparent"]
-                if parent_sec is None:
-                    root_section = sec
-                    break
-
-            nsec = sum([1 for x in self.h.h.allsec()])
-            self.walk_tree(root_section)
+            print("vispy: Building morphology per-section")
+            # Claude fixed 2026-06-16: replaced walk_tree (root-to-leaf path builder)
+            # with build_per_section which makes one tube per section and explicitly
+            # prepends the parent's last pt3d → no gaps at branch junctions.
+            # root_section = None
+            # for sec in self.h.h.allsec():
+            #     secinfo = sec.psection()
+            #     parent_sec = secinfo["morphology"]["trueparent"]
+            #     if parent_sec is None:
+            #         root_section = sec
+            #         break
+            # nsec = sum([1 for x in self.h.h.allsec()])
+            # self.walk_tree(root_section)
+            self.build_per_section()
 
         elif start_pos == "tips":
             print("vispy: Building morphology from tips")
@@ -1321,13 +1312,9 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         affine = saxis.as_matrix()
         axis.transform = affine
         view.add(axis)
-        self.shading_filter = ShadingFilter("smooth")
-        self.shading_filter.ambient_light = (0.3, 0.3, 0.3)
-        # for tube in self.vtubes:
-        #     tube.attach(self.shading_filter)
-        # wireframe_filter = WireframeFilter(line_width=1.0, color=(0,0,0,1))
-        # for tube in self.vtubes:
-        self.attach_headlight(self.shading_filter, view=view)
+        # self.shading_filter = ShadingFilter("smooth")  # Claude fixed 2026-06-16: was never attached to any tube; had no visual effect
+        # self.shading_filter.ambient_light = (0.3, 0.3, 0.3)
+        self.attach_headlight(view=view, headlight=headlight)
         # tube does not expose its limits yet
         self.timer = vispy.app.timer.Timer(interval=0.3, connect=self.timerevent, start=True)
         # self.canvas.events.mouse_press.connect((self, 'mouse_handler'))
@@ -1363,7 +1350,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
     def walk_tree(self, sec):
         """
         Recursive walk through the dendritic tree -
-        sec must be a section object. The main call 
+        sec must be a section object. The main call
         should set sec to the root section (the one with no parent).
         """
         self.nsec += 1
@@ -1432,6 +1419,70 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         # print(">>> Saved current tube with: ", self.tubes["sections"][-1])  
         self.initialize_tube()  # prepare to build another one
 
+    def build_per_section(self):
+        """
+        Build one vispy Tube per section, prefixed with the parent's last pt3d
+        so that every child tube connects to its parent without a gap.
+        Claude fixed 2026-06-16: replaces walk_tree to eliminate branch-junction gaps.
+        """
+        for sec in self.h.h.allsec():
+            n3d = int(sec.n3d())
+            if n3d < 1:
+                continue
+            sec_name = str(sec)
+            sec_col = self.section_colors.get(sec_name, [0.5, 0.5, 0.5, 1.0])
+            points, radii, colors_list, vcols = [], [], [], []
+
+            parent_seg = sec.trueparentseg()
+            if parent_seg is not None:
+                psec = parent_seg.sec
+                pi = int(psec.n3d()) - 1
+                if pi >= 0:
+                    px, py, pz = psec.x3d(pi), psec.y3d(pi), psec.z3d(pi)
+                    # Claude fixed 2026-06-16: skip prefix if section's first pt3d already
+                    # equals the parent's last pt3d (singleton repair in swc_to_hoc.py
+                    # copies it in), otherwise two identical leading points cause vispy
+                    # Tube to fail silently via the except:pass in the render loop.
+                    already_connected = (
+                        n3d > 0
+                        and abs(px - sec.x3d(0)) < 1e-6
+                        and abs(py - sec.y3d(0)) < 1e-6
+                        and abs(pz - sec.z3d(0)) < 1e-6
+                    )
+                    if not already_connected:
+                        pcol = self.section_colors.get(str(psec), [0.5, 0.5, 0.5, 1.0])
+                        points.append([px, py, pz])
+                        radii.append(psec.diam3d(pi) / 2.0)
+                        colors_list.append(pcol)
+                        vcols.append([pcol] * self.ntpts)
+
+            for i in range(n3d):
+                points.append([sec.x3d(i), sec.y3d(i), sec.z3d(i)])
+                radii.append(sec.diam3d(i) / 2.0)
+                colors_list.append(sec_col)
+                vcols.append([sec_col] * self.ntpts)
+
+            # Claude fixed 2026-06-16: single-point sections (e.g. soma with n3d=1 and
+            # no parent) would be silently skipped; extend to a stub so they render.
+            if len(points) == 1:
+                r = max(radii[0], 0.1)
+                points.append([points[0][0], points[0][1], points[0][2] + r])
+                radii.append(r)
+                colors_list.append(colors_list[0])
+                vcols.append(vcols[0])
+
+            if len(points) < 2:
+                continue  # vispy Tube requires at least 2 points
+
+            vc = np.array(vcols)
+            vc = np.reshape(vc, (vc.shape[0] * vc.shape[1], -1))
+            self.tubes["points"].append(points)
+            self.tubes["radii"].append(radii)
+            self.tubes["colors"].append(np.array(colors_list))
+            self.tubes["vertices"].append(vc)
+            self.tubes["names"].append(sec_name)
+            self.tubes["sections"].append(sec)
+
     def build_segment(self, sec, i_pt3d, ntpts, endpoint=False):
         # print("sec: ", sec)
         for i in i_pt3d:
@@ -1465,16 +1516,48 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             self.vertex_colors = []
             self.tube_names = []
 
-    def attach_headlight(self, shading_filter, view):
-        light_dir = (1, 1, 0, 0)
-        shading_filter.light_dir = light_dir[:3]
-        self.initial_light_dir = view.camera.transform.imap(light_dir)
+    def attach_headlight(self, view, headlight: bool = True):
+        """Configure lighting.  headlight=True keeps the light over the viewer's
+        shoulder by updating each tube's shading_filter whenever the camera moves.
+        Claude fixed 2026-06-16: was updating self.shading_filter (never attached to
+        any tube → no visual effect); now updates per-tube shading filters directly.
+        Claude fixed 2026-06-16: switched from view.scene.transform.changed (fires
+        after the frame is already drawn) to canvas.events.draw with position='first'
+        (guaranteed to run before the scene renders on every frame).
+        """
+        self.headlight = headlight
+        # Claude fixed 2026-06-16: [0,-1,0,0] is the "behind camera" direction for
+        # vispy ArcballCamera with up='+z' (forward=(0,1,0) in scene space).
+        # dtype=float32 matches vispy's mesh_shading example.
+        # [0,0,1,0] was wrong direction (maps to scene up rather than toward viewer).
+        self._cam_space_light = np.array([0, -1, 0, 0], dtype=np.float32)
+        if headlight:
+            self.canvas.events.draw.connect(self._pre_draw_headlight, position='first')
 
-    # @view.scene.transform.changed.connect
+    def _pre_draw_headlight(self, event):
+        """Called just before each canvas draw; updates light direction for headlight."""
+        if self.headlight:
+            self._update_light_dir()
+
+    def _update_light_dir(self):
+        """Push current camera-space light direction into every tube's shading filter."""
+        # Claude fixed 2026-06-16: imap (scene→camera) was wrong; camera.transform
+        # maps camera→scene, so map() is correct (matches vispy mesh_shading example).
+        direction = self.view.camera.transform.map(self._cam_space_light)[:3]
+        norm = np.linalg.norm(direction)
+        if norm > 1e-10:
+            direction = direction / norm
+        for tube in self.vtubes:
+            sf = getattr(tube, "shading_filter", None)
+            if sf is not None:
+                sf.light_dir = direction
+
+    # @view.scene.transform.changed.connect  (connected via lambda in attach_headlight)
     def on_transform_change(self, event):
-        transform = self.view.camera.transform
-        direction = np.concatenate((self.shading_filter.light_dir[:3], [0]))
-        self.shading_filter.light_dir = transform.imap(direction)[:3]
+        # Claude fixed 2026-06-16: old version referenced self.shading_filter which
+        # was never attached to any tube; now delegates to _update_light_dir.
+        if self.headlight:
+            self._update_light_dir()
 
     def set_section_colors(self, sec_colors):
         pass
