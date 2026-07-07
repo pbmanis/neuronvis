@@ -119,6 +119,9 @@ class SWC(object):
             case "sbem3":
                 self.sectypes = swc_sectypes.sbem3_sectypes
                 self.idsofpart = swc_sectypes.idsofpart_sbem3
+            case "sbem4":
+                self.sectypes = swc_sectypes.sbem4_sectypes
+                self.idsofpart = swc_sectypes.idsofpart_sbem4
             case _:
                 raise ValueError("SWC number map type is not recognized: %s" % section_map)
 
