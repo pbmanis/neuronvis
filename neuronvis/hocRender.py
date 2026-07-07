@@ -445,7 +445,7 @@ def main() -> None:
         type=str,
         default="sbem3",
         dest="section_map",
-        choices=["swc", "sbem", "sbem2", "sbem3"],
+        choices=["swc", "sbem", "sbem2", "sbem3", "sbem4"],
         help="Choose section mapping",
     )
 

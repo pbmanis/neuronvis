@@ -1251,6 +1251,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                 walk_from_tips(sec)
 
         self.vtubes = []  # We create separate "tubes" for each segment that has been built
+        self.vspheres = []  # spheres at section-junction points to fill cylinder end-cap gaps
         for i in range(len(self.tubes["points"])):
             try:
                 thistube = vispy.scene.visuals.Tube(
@@ -1266,6 +1267,7 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
                 self.vtubes.append(thistube)
             except:
                 pass
+        self.build_junctions()
         self.view.camera = "arcball"  # scene.TurntableCamera()
         # self.view.camera = scene.ArcballCamera()  # only uses distance, fov and translate.
         if state is not None:
@@ -1275,6 +1277,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             self.view.camera.set_range((-180, 180), (-180, 180), (-180, 180))
         for tube in self.vtubes:
             view.add(tube)  # add them all in
+        for sphere in self.vspheres:
+            view.add(sphere)
         canvas.unfreeze()
 
         # create axis marker with 10 micron legs
@@ -1445,6 +1449,80 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
             self.tubes["names"].append(sec_name)
             self.tubes["sections"].append(sec)
 
+    def build_junctions(self):
+        """
+        Place one Sphere at the last pt3d of each parent section that has at
+        least one child, filling the open wedge where two angled cylinder
+        end-caps meet. One sphere per unique parent endpoint (branch points
+        with multiple children still get only one sphere).
+        """
+        seen_parents = set()
+        for sec in self.h.h.allsec():
+            parent_seg = sec.trueparentseg()
+            if parent_seg is None:
+                continue
+            psec = parent_seg.sec
+            psec_name = str(psec)
+            if psec_name in seen_parents:
+                continue
+            seen_parents.add(psec_name)
+            pi = int(psec.n3d()) - 1
+            if pi < 0:
+                continue
+            x, y, z = psec.x3d(pi), psec.y3d(pi), psec.z3d(pi)
+            radius = max(psec.diam3d(pi) / 2.0 * 0.95, 0.05)
+            col = self.section_colors.get(psec_name, [0.5, 0.5, 0.5, 1.0])
+            try:
+                sphere = vispy.scene.visuals.Sphere(
+                    radius=radius,
+                    cols=12,
+                    rows=12,
+                    color=col,
+                    shading="smooth",
+                )
+                sphere.transform = STTransform(translate=(x, y, z))
+                self.vspheres.append(sphere)
+            except Exception:
+                pass
+
+        # End-cap spheres at every terminal section (no children) so the open
+        # tube end-cap is not visible.
+        for sec in self.h.h.allsec():
+            if len(sec.children()) > 0:
+                continue
+            n3d = int(sec.n3d())
+            if n3d < 1:
+                continue
+            li = n3d - 1
+            x, y, z = sec.x3d(li), sec.y3d(li), sec.z3d(li)
+            radius = max(sec.diam3d(li) / 2.0 * 0.95, 0.05)
+            # Offset the sphere centre outward along the terminal segment direction
+            # so the sphere sits on the outside of the tube end-cap rather than
+            # being half-buried inside it (which causes z-fighting / invisible caps).
+            if li >= 1:
+                dx = sec.x3d(li) - sec.x3d(li - 1)
+                dy = sec.y3d(li) - sec.y3d(li - 1)
+                dz = sec.z3d(li) - sec.z3d(li - 1)
+                seg_len = np.sqrt(dx*dx + dy*dy + dz*dz)
+                if seg_len > 1e-10:
+                    x += dx / seg_len * radius * 0.1
+                    y += dy / seg_len * radius * 0.1
+                    z += dz / seg_len * radius * 0.1
+            sec_name = str(sec)
+            col = self.section_colors.get(sec_name, [0.5, 0.5, 0.5, 1.0])
+            try:
+                sphere = vispy.scene.visuals.Sphere(
+                    radius=radius,
+                    cols=12,
+                    rows=12,
+                    color=col,
+                    shading="smooth",
+                )
+                sphere.transform = STTransform(translate=(x, y, z))
+                self.vspheres.append(sphere)
+            except Exception:
+                pass
+
     def build_segment(self, sec, i_pt3d, ntpts, endpoint=False):
         # print("sec: ", sec)
         for i in i_pt3d:
@@ -1508,8 +1586,11 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         norm = np.linalg.norm(direction)
         if norm > 1e-10:
             direction = direction / norm
-        for tube in self.vtubes:
-            sf = getattr(tube, "shading_filter", None)
+        for visual in (*self.vtubes, *self.vspheres):
+            # Sphere is a CompoundVisual whose MeshVisual lives in ._mesh;
+            # Tube inherits MeshVisual directly so shading_filter is on self.
+            mesh_vis = getattr(visual, "_mesh", visual)
+            sf = getattr(mesh_vis, "shading_filter", None)
             if sf is not None:
                 sf.light_dir = direction
 
