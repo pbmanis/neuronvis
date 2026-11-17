@@ -28,11 +28,13 @@ class HocReader(object):
         scale: dict = {"x": 1.0, "y": 1.0, "z": 1.0, "r": 1.0},
         section_map: str = "swc",
         verify: bool = False,
+        verbose: bool = False,
     ) -> None:
         self.file_loaded = False
         self.center = center
         self.centerpos = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.scale = scale
+        self.verbose = verbose
         print("HocReader:: Reading file:", hoc)
         fullfile = Path(
             ""
@@ -43,9 +45,10 @@ class HocReader(object):
             if not fullfile.exists():
                 raise Exception("HodReader:: File not found: %s" % (str(fullfile)))
             if fullfile.suffix in [".hoc", ".hocx"]:
-                neuron.h.hoc_stdout(
-                    "/dev/null"
-                )  # prevent junk from printing while reading the file
+                if not verbose:
+                    neuron.h.hoc_stdout(
+                        "/dev/null"
+                    )  # prevent junk from printing while reading the file
                 success = neuron.h.load_file(str(fullfile))
                 neuron.h.hoc_stdout()
             elif fullfile.suffix in [".swc"]:
@@ -139,7 +142,10 @@ class HocReader(object):
                     if sec.name() not in secnames:
                         secnames.append(sec.name())
                 print("Available sections: ", secnames)
-                exit()
+                # exit()
+                raise ValueError(  # Claude fixed 2026-11-17: exit() quit the whole program (and is undefined in the frozen app); let the caller report it
+                    f"HocReader:: No soma section found to center on; sections: {secnames!s}"
+                )
         print("File read and file_loaded is: ", self.file_loaded)
 
         # geometry containers

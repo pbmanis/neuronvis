@@ -1,0 +1,199 @@
+Claude Code Edit Log
+====================
+Session: 2026-06-16
+Model: claude-sonnet-4-6
+
+Files modified this session
+-----------------------------
+neuronvis/hoc_graphics.py
+
+-------------------------------------------------------------------------------
+EDIT 1 — Replace walk_tree with build_per_section
+File: neuronvis/hoc_graphics.py
+Reason: walk_tree built one Tube per root-to-leaf path; 2nd+ branches at every
+branch point started disconnected from the parent, producing gaps everywhere.
+Fix: new method build_per_section() — one Tube per section, prefixed with the
+parent's last pt3d so every section connects seamlessly to its parent.
+Comment: # Claude fixed 2026-06-16: replaced walk_tree (root-to-leaf path builder)
+
+Old approach (now commented out):
+    self.walk_tree(root_section)
+
+New approach:
+    self.build_per_section()
+
+build_per_section() logic:
+  - Iterates all sections via self.h.h.allsec()
+  - For each section with a trueparentseg, prepends parent's last pt3d
+    UNLESS that point already equals sec.x3d(0) (singleton-repair guard, see EDIT 3)
+  - If a section ends up with only 1 point (e.g., root soma), extends to a
+    2-point stub by adding a second point offset by the radius (EDIT 2)
+  - Skips any section with < 2 points after all the above
+
+-------------------------------------------------------------------------------
+EDIT 2 — Soma / single-point stub fix
+File: neuronvis/hoc_graphics.py  (inside build_per_section)
+Reason: Root section (soma) has n3d=1 and no parent, so it produced only 1 point
+and was silently skipped by the len(points)<2 guard — soma disappeared.
+Fix: When len(points)==1, extend to a 2-point stub:
+    r = max(radii[0], 0.1)
+    points.append([points[0][0], points[0][1], points[0][2] + r])
+Comment: # Claude fixed 2026-06-16: single-point section (soma/root) extended to stub
+
+-------------------------------------------------------------------------------
+EDIT 3 — Singleton-repair duplicate-prefix guard
+File: neuronvis/hoc_graphics.py  (inside build_per_section)
+Reason: swc_to_hoc.py repairs singleton sections (n3d==1) by prepending the
+parent's last pt3dadd. build_per_section was ALSO prepending it, producing two
+identical leading points. vispy Tube fails silently on duplicate points — those
+sections vanished from the rendering.
+Fix: Before prepending parent's last pt3d, check if it already matches sec.x3d(0):
+    already_connected = (
+        abs(px - sec.x3d(0)) < 1e-6 and
+        abs(py - sec.y3d(0)) < 1e-6 and
+        abs(pz - sec.z3d(0)) < 1e-6
+    )
+    if not already_connected:
+        # prepend parent point
+Comment: # Claude fixed 2026-06-16: skip duplicate prefix for singleton-repaired sections
+
+-------------------------------------------------------------------------------
+EDIT 4 — Headlight implementation (initial)
+File: neuronvis/hoc_graphics.py
+Reason: With a fixed world-space light, rotating the model causes surfaces to go
+dark/bright unexpectedly. A headlight keeps the light over the viewer's shoulder.
+Added headlight: bool = True parameter to vispy_Cylinders.__init__.
+
+Removed: self.shading_filter = ShadingFilter("smooth")  (was never attached to
+any tube — had no visual effect; the per-tube shading_filter set via
+shading="smooth" on each Tube() call is what actually applies).
+
+Added attach_headlight() method:
+  - Connects self._pre_draw_headlight to canvas.events.draw (position='first')
+    so the light direction is updated BEFORE each frame is rendered.
+  - _pre_draw_headlight calls _update_light_dir() if self.headlight is True.
+  - _update_light_dir() computes the scene-space headlight direction from the
+    camera transform and sets sf.light_dir on every tube's shading_filter.
+Comment: # Claude fixed 2026-06-16: was updating self.shading_filter (never attached)
+
+-------------------------------------------------------------------------------
+EDIT 5 — Headlight direction: imap → map and correct camera-space direction
+File: neuronvis/hoc_graphics.py  (_update_light_dir and attach_headlight)
+Reason: Two bugs in the headlight direction computation:
+
+  Bug A — wrong transform operation:
+    camera.transform maps FROM camera space TO scene space (it is the camera's
+    node transform in vispy's scene graph, not the view matrix).
+    Therefore transform.map(cam_dir) gives the scene-space equivalent of cam_dir.
+    We were using transform.imap(...) which goes the opposite direction
+    (scene→camera), giving a nonsensical scene-space direction.
+    This matches the official vispy mesh_shading.py example which uses .map().
+
+  Bug B — wrong camera-space direction:
+    For vispy's ArcballCamera with up='+z', the camera looks in the scene +Y
+    direction (forward=(0,1,0)). The "behind camera / toward viewer" direction
+    in camera space is therefore -Y = [0,-1,0,0].
+    We were using [0,0,1,0] (scene +Z) which is unrelated to the viewing direction.
+
+Old code:
+    self._cam_space_light = np.array([0, 0, 1, 0], dtype=float)
+    direction = self.view.camera.transform.imap(self._cam_space_light)[:3]
+
+New code:
+    self._cam_space_light = np.array([0, -1, 0, 0], dtype=np.float32)
+    direction = self.view.camera.transform.map(self._cam_space_light)[:3]
+
+Comment: # Claude fixed 2026-06-16: imap (scene→camera) was wrong; camera.transform
+         # maps camera→scene, so map() is correct (matches vispy mesh_shading example).
+
+-------------------------------------------------------------------------------
+Call site for headlight flag
+File: neuronvis/hoc_viewer.py  (draw_vispy method)
+The headlight parameter is passed as:
+    HG.vispy_Cylinders(self.hr, ..., headlight=True)   # headlight on
+    HG.vispy_Cylinders(self.hr, ..., headlight=False)  # headlight off
+Default in vispy_Cylinders.__init__ is headlight=True.
+
+-------------------------------------------------------------------------------
+EDIT 6 — Junction spheres at branch points (vispy only)
+File: neuronvis/hoc_graphics.py  (new method build_junctions, __init__, _update_light_dir)
+Reason: Where two angled cylinders meet at a branch point, the flat end-caps of
+each TubeVisual do not align perfectly, leaving visible wedge gaps. Placing a
+sphere at the parent section's last pt3d hides these gaps.
+
+Changes:
+  1. Added self.vspheres = [] in __init__, after self.vtubes = [].
+  2. Added self.build_junctions() call after the tube-creation loop.
+  3. Added loop "for sphere in self.vspheres: view.add(sphere)" after the vtubes loop.
+  4. New method build_junctions() — two passes:
+     Pass 1 (junction spheres): for each section that has a parent, place one Sphere
+       at the parent section's last pt3d. Deduplicated by parent section name so
+       branch points with multiple children get only one sphere.
+     Pass 2 (terminal end-cap spheres): for every leaf section (no children), place a
+       Sphere at its last pt3d to seal the open tube end.
+  5. Sphere radius: max(diam / 2.0 * 0.95, 0.05).  The 0.95 factor avoids slight
+     protrusion beyond the tube wall; the 0.05 floor prevents failure on
+     zero-diameter sections.
+  6. Color: looked up from self.section_colors (same dict as tubes).
+  7. Parameters: cols=12, rows=12, shading="smooth".
+  8. Creation wrapped in try/except to tolerate degenerate sections silently.
+
+Comment: # Claude fixed 2026-06-16: junction/terminal spheres fill gaps at branch points
+
+-------------------------------------------------------------------------------
+EDIT 7 — Terminal end-cap sphere: outward direction offset
+File: neuronvis/hoc_graphics.py  (build_junctions, terminal pass)
+Reason: Sphere centered exactly at the tube endpoint is half-buried inside the
+tube, causing z-fighting between the sphere back-face and the TubeVisual's flat
+end-cap disc — some terminal caps appeared missing at certain viewing angles.
+Fix: Offset the sphere centre 10% of its radius outward along the terminal
+segment direction vector (from pt3d[n-2] → pt3d[n-1]):
+    dx, dy, dz = direction vector
+    seg_len = ||d||
+    x += dx/seg_len * radius * 0.1   (and similarly y, z)
+Only applied when n3d >= 2 (there is a direction to compute).
+
+Old code: sphere centered at (sec.x3d(li), sec.y3d(li), sec.z3d(li))
+New code: same point offset by radius*0.1 in terminal-segment direction
+
+Comment: # Claude fixed 2026-06-16: 0.1*radius outward offset avoids z-fighting
+
+-------------------------------------------------------------------------------
+EDIT 8 — Sphere headlight: SphereVisual CompoundVisual._mesh fix
+File: neuronvis/hoc_graphics.py  (_update_light_dir)
+Reason: Spheres were not responding to the headlight — they stayed statically lit
+while tubes tracked the camera correctly.
+Root cause: SphereVisual inherits from CompoundVisual. Its actual MeshVisual
+lives in sphere._mesh, not on the SphereVisual itself. Therefore:
+  sphere.shading_filter  →  None    (no shading_filter on CompoundVisual)
+  sphere._mesh.shading_filter  →  ShadingFilter instance  (correct)
+TubeVisual inherits directly from MeshVisual, so tube.shading_filter works
+without indirection.
+
+Old code (only iterated vtubes):
+    for visual in self.vtubes:
+        sf = getattr(visual, "shading_filter", None)
+
+New code (iterates both, handles CompoundVisual indirection):
+    for visual in (*self.vtubes, *self.vspheres):
+        mesh_vis = getattr(visual, "_mesh", visual)
+        sf = getattr(mesh_vis, "shading_filter", None)
+        if sf is not None:
+            sf.light_dir = direction
+
+Comment: # Claude fixed 2026-06-16: SphereVisual is CompoundVisual; mesh in ._mesh
+
+-------------------------------------------------------------------------------
+EDIT 9 — Sphere facets increased for smoother appearance
+File: neuronvis/hoc_graphics.py  (build_junctions, both passes)
+Reason: At cols=8, rows=8 spheres appeared visibly faceted at typical zoom levels.
+Changed to cols=12, rows=12 in both the junction-sphere and terminal-cap-sphere
+creation calls (replace_all=True since both loops had identical parameters).
+
+Old: cols=8, rows=8
+New: cols=12, rows=12
+
+Comment: # Claude fixed 2026-06-16: 8x8 facets too coarse; 12x12 smoother
+
+-------------------------------------------------------------------------------
+End of session log

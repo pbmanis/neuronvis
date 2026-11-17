@@ -115,6 +115,7 @@ class Render(object):
         section_map: str = "swc",  # mapping for swc files
         state: Union[object, None] = None,
         flags=None,  # passed to mayavi, probably str, list or object.
+        verbose: bool = False,
     ) -> None:
 
         self.section_colors = section_colors
@@ -148,6 +149,7 @@ class Render(object):
             center=self.center,
             scale=self.scalexyzr,
             verify=verify,
+            verbose=verbose
         )
         if self.points is not None:
             self.counting_point_data = pd.read_csv(self.points)
@@ -555,6 +557,14 @@ def main() -> None:
         default=None,
         help="Points from a csv file to plot along with rendering (default: None.)",
     )
+
+    parser.add_argument(
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        default=False,
+        help="Enable verbose output",
+    )
     args = vars(parser.parse_args())
 
     hoc_file = None
@@ -597,6 +607,7 @@ def main() -> None:
         sim_data=sim_data,
         section_map=args["section_map"],
         points=args.get("points", None),
+        verbose=args["verbose"],
     )
 
 

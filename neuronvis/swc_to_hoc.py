@@ -352,7 +352,10 @@ class SWC(object):
                 f"// Scaling: x: {self.scalexyzr['x']:f}, y: {self.scalexyzr['y']:f}, z: {self.scalexyzr['z']:f}, r: {self.scalexyzr['r']:f}"
             )
         hoc.append("")
-        sectypes = self.sectypes.copy()
+        # sectypes = self.sectypes.copy()
+        sectypes = {  # Claude fixed 2026-11-17: type names become HOC SectionList names; spaces (sbem4 "Basal dendrite") are a HOC syntax error and no sections were created
+            k: v.replace(" ", "_") for k, v in self.sectypes.items()
+        }
         # print('sectypes: ', secf)
         for t in np.unique(self.data["type"]):
             # print(t)

@@ -16,6 +16,7 @@ dependencies = [
     "cryptography==41.0.5",
     "cv>=1.0.0",
     "cython>=3.0.4",
+    "h5py>=3.12",
     "importlib-metadata==1.6.0",
     "ipaddr>=2.2.0",
     "keyring>=21.2.1",
@@ -37,6 +38,7 @@ dependencies = [
     "simplejson>=3.17.0",
     "vispy>=0.15.2",
     "pylibrary",
+    "varname>=1.0.0",
 ]
 
 [build-system]
@@ -56,6 +58,8 @@ pylibrary = { git = "https://github.com/pbmanis/pylibrary" }
 hocRender='neuronvis.hocRender:main'
 swc_to_hoc='neuronvis.swc_to_hoc:main'
 hocViewer='neuronvis.viewer:main'
+hocRenderGUI='neuronvis.hocRender_gui:main'
+ims_to_swc='neuronvis.imaris_reader:main'
 
 
 [project.gui-scripts]

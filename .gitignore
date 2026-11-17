@@ -8,6 +8,13 @@
 *.png
 *.bak
 
+# morphology files:
+*.ims
+*.swc
+*.hoc
+*.hocx
+*.segmap
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -114,3 +121,4 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+

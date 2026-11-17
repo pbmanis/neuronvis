@@ -58,6 +58,9 @@ section_colors = {
     "basal": "magenta",
     "basal_dendrite": "magenta",
     "Dendrite_basal": "magenta",
+    "Basal_dendrite": "magenta",  # sbem4 type 3 ("Basal dendrite")
+    "Apical_dendrite": "beige",  # sbem4 type 4 ("Apical dendrite")
+    "apical_dendrite": "beige",  # swc type 4 (e.g. Imaris filaments via imaris_reader)
     "Dendrite_spine": "red",
 # parts of dendrites
     "Dendrite_swelling": "yellow",
@@ -102,6 +105,7 @@ section_colors = {
     "Astrocyte_vellus_process": "goldenrod",
     "Astrocyte_blood_brain_barrier": "puke green",
     "Astrocyte_undefined": "white",
+    "Glial_process": "pale orange",  # sbem4 type 7 ("Glial process")
     
     # other (cortex dendrites)
     "dend1_*": "magenta",
@@ -122,6 +126,7 @@ section_colors = {
     "custom": "white",
     "unspecified neurites": "gold",
     "Neurite": "gold",
+    "Unspecified_neurite": "gold",  # sbem4 type 6 ("Unspecified neurite")
     "type_8": "red",
     "type_13": "orange",
     "type_14": "yellow",
