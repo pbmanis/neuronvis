@@ -8,6 +8,8 @@ import re
 
 import neuronvis.swc_sectypes as swc_sectypes
 import neuronvis.renderer_colormaps as colormaps
+import neuronvis.topology_check as topology_check
+from pylibrary.tools.cprint import cprint as CP
 """
 SWC File format from CNIC:
 
@@ -137,6 +139,12 @@ class SWC(object):
         else:
             raise TypeError("Must initialize with filename or data array.")
 
+        # confirm one connected tree before sorting: sort() keeps only the tree
+        # of the first root (reported, not enforced)
+        source = Path(self.filename).name if getattr(self, "filename", None) is not None else "SWC data"
+        self.topology_report = topology_check.check_swc(self.data, source=source)
+        CP("g" if self.topology_report.ok else "r", str(self.topology_report))
+
         print("sorting: ")
         self.sort()
         self.set_parent_section("soma")
@@ -197,9 +205,18 @@ class SWC(object):
         """
         Return a list of IDs in the branch beginning at *id*.
         """
-        branch = [id]
-        for ch in self.children(id):
-            branch.extend(self.branch(ch))
+        # branch = [id]
+        # for ch in self.children(id):
+        #     branch.extend(self.branch(ch))
+        # return branch
+        # Claude fixed 2026-11-17: the recursion went one level per node along a path, so paths
+        # longer than ~1000 points raised RecursionError; same pre-order with an explicit stack
+        branch = []
+        stack = [id]
+        while stack:
+            node = stack.pop()
+            branch.append(node)
+            stack.extend(reversed(self.children(node)))
         return branch
 
     def children(self, ident: int) -> list:

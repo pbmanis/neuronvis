@@ -9,7 +9,9 @@ import numpy as np
 import pyqtgraph as pg
 from neuron import h
 
-from . import swc_to_hoc
+from pylibrary.tools.cprint import cprint as CP
+
+from . import swc_to_hoc, topology_check
 
 
 class HocReader(object):
@@ -147,6 +149,12 @@ class HocReader(object):
                     f"HocReader:: No soma section found to center on; sections: {secnames!s}"
                 )
         print("File read and file_loaded is: ", self.file_loaded)
+
+        # confirm that the sections form one connected tree (reported, not enforced)
+        self.topology_report = topology_check.check_sections(
+            self.h, source=fullfile.name if fullfile.name else "hoc object"
+        )
+        CP("g" if self.topology_report.ok else "r", str(self.topology_report))
 
         # geometry containers
         self.edges = None

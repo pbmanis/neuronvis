@@ -50,7 +50,7 @@ from PyQt6 import sip
 import neuron
 import neuronvis
 import neuronvis.renderer_colormaps as rc
-from neuronvis import hoc_reader, hoc_viewer, imaris_reader, obj_reader, swc_sectypes
+from neuronvis import hoc_reader, hoc_viewer, imaris_reader, obj_reader, swc_sectypes, topology_check
 
 # Classes and tables from other neuronvis modules are looked up through their
 # module at render time (hoc_viewer.HocViewer, rc.section_colors, ...) rather
@@ -129,6 +129,7 @@ class HocRenderWindow(QtWidgets.QMainWindow):
         self.mpl_figure = None
         self.hoc = None
         self.bounds = None  # (min xyz, max xyz) of the rendered cell
+        self.topology_report = None  # topology_check.TopologyReport of the last morphology
         self.mesh_cache = None  # (path, mtime, vertices, faces) of the last mesh read
         self.updating_filament_choices = False
 
@@ -278,6 +279,11 @@ class HocRenderWindow(QtWidgets.QMainWindow):
                     dict(name="Reset view", type="action", tip="Fit the camera to the cell"),
                     dict(name="Save image...", type="action"),
                     dict(
+                        name="Topology report...",
+                        type="action",
+                        tip="Show the connectivity check of the last morphology loaded",
+                    ),
+                    dict(
                         name="Export SWC...",
                         type="action",
                         tip="Save the selected Imaris filaments as an SWC file",
@@ -308,6 +314,7 @@ class HocRenderWindow(QtWidgets.QMainWindow):
         self.params.child("Actions", "Reset view").sigActivated.connect(self.reset_view)
         self.params.child("Actions", "Save image...").sigActivated.connect(self.save_image)
         self.params.child("Actions", "Export SWC...").sigActivated.connect(self.export_swc)
+        self.params.child("Actions", "Topology report...").sigActivated.connect(self.show_topology_report)
         self.params.child("Development", "Reload source").sigActivated.connect(self.reload_source)
 
     # ------------------------------------------------------------------
@@ -503,6 +510,10 @@ class HocRenderWindow(QtWidgets.QMainWindow):
                 "Morphology file must be a hoc, hocx, swc, ims or p file (choose .obj meshes with 'Mesh file')."
             )
         verbose = self.value("Diagnostics", "Verbose")
+        self.topology_report = None
+        node_report = None
+        if hoc_file.suffix == ".swc":
+            node_report = topology_check.check_swc(hoc_file, source=filename.name)
         clear_neuron_sections()
         if hoc_file.suffix in [".hoc", ".hocx"]:
             force_load_hoc(hoc_file, verbose=verbose)
@@ -526,6 +537,44 @@ class HocRenderWindow(QtWidgets.QMainWindow):
                 f"'{section_map:s}' (invalid HOC?). "
                 "Turn on Verbose to see NEURON's messages."
             )
+        self.check_topology(filename, node_report, notes)
+
+    def check_topology(
+        self, filename: Path, node_report: Union["topology_check.TopologyReport", None], notes: list
+    ) -> None:
+        """
+        Confirm that the loaded morphology is one connected tree (see
+        topology_check): the SWC nodes, if read from an SWC file, and the NEURON
+        sections. Problems are reported, but the cell is still drawn so that
+        they can be found.
+        """
+        # HocReader checks (and prints) the sections; combine with the node check
+        sections = self.hoc.topology_report
+        report = topology_check.TopologyReport(source=filename.name, summary=dict(sections.summary))
+        report.errors = list(sections.errors)
+        report.warnings = list(sections.warnings)
+        if node_report is not None:
+            report.errors = node_report.errors + report.errors
+            report.warnings = node_report.warnings + report.warnings
+            report.summary = {"nodes": node_report.summary["nodes"], **report.summary}
+        self.topology_report = report
+        if not report.ok:
+            notes.append(f"topology: {len(report.errors):d} error(s), see Topology report")
+            QtWidgets.QMessageBox.warning(self, "Topology errors", str(report))
+        elif len(report.warnings) > 0:
+            notes.append(f"topology OK, {len(report.warnings):d} warning(s)")
+        else:
+            notes.append("topology OK")
+
+    def show_topology_report(self) -> None:
+        if self.topology_report is None:
+            self.statusBar().showMessage("No morphology loaded")
+            return
+        box = QtWidgets.QMessageBox(self)
+        box.setWindowTitle("Topology report")
+        box.setText(str(self.topology_report))
+        box.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
+        box.exec()
 
     def convert_imaris(self, filename: Path, notes: list) -> Path:
         """
@@ -544,7 +593,7 @@ class HocRenderWindow(QtWidgets.QMainWindow):
             raise ValueError(f"No filament objects selected in {filename.name:s}")
         swc_dir = Path(tempfile.gettempdir(), "neuronvis_ims")
         swc_dir.mkdir(exist_ok=True)
-        swc_file, n_fragments, n_points = imaris_reader.ims_to_swc(
+        swc_file, n_fragments, n_points, _ = imaris_reader.ims_to_swc(
             filename, Path(swc_dir, filename.stem + ".swc"), names, connected_only=True
         )
         if n_fragments > 0:
@@ -818,11 +867,15 @@ class HocRenderWindow(QtWidgets.QMainWindow):
         )
         if not swc_file:
             return
-        # keep everything in the exported file; unconnected pieces become separate trees
-        swc_file, n_fragments, n_points = imaris_reader.ims_to_swc(filename, swc_file, names)
+        # only the tree connected to the soma: an SWC must be one connected tree
+        swc_file, n_fragments, n_points, report = imaris_reader.ims_to_swc(
+            filename, swc_file, names, connected_only=True
+        )
         msg = f"Exported {', '.join(names):s} to {str(swc_file):s}"
         if n_fragments > 0:
-            msg += f"  [{n_fragments:d} unconnected piece(s), {n_points:d} points, as separate trees]"
+            msg += f"  [{n_fragments:d} piece(s), {n_points:d} points, not connected to the soma left out]"
+        msg += "  [topology OK]" if report.ok else "  [topology errors, see console]"
+        print(report)
         self.statusBar().showMessage(msg)
 
     def reload_source(self) -> None:

@@ -17,11 +17,13 @@ SWC types are taken from the object name: "Apical" -> 4 (apical dendrite),
 root vertices are written as soma (1). When several objects are converted
 together, roots at the same place (within the soma radius) share one soma
 node, so a cell traced as separate "Basal" and "Apical" objects becomes one
-tree. Pieces that are not connected to a root are written as separate SWC
-trees (parent -1), unless connected_only is set.
+tree. Pieces that are not connected to a root are left out by default (an SWC
+for NEURON must be one connected tree); with connected_only=False they are
+written as separate SWC trees (parent -1). The result is checked with
+topology_check.check_swc.
 
 Command line:
-    python -m neuronvis.imaris_reader file.ims [-o out.swc] [--objects "Filaments 1 Basal" ...] [--list]
+    ims_to_swc file.ims [-o out.swc] [--objects "Filaments 1 Basal" ...] [--list] [--keep-fragments]
 
 Requires h5py.
 """
@@ -35,6 +37,8 @@ from typing import Union
 import numpy as np
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import breadth_first_order
+
+from neuronvis import topology_check
 
 content_path = "Scene8/Content"
 
@@ -241,12 +245,12 @@ def ims_to_swc(
     filename: Union[str, Path],
     swc_file: Union[str, Path, None] = None,
     names: Union[list, None] = None,
-    connected_only: bool = False,
+    connected_only: bool = True,
 ) -> tuple:
     """
     Convert the filament objects *names* (default: see default_objects) of an
     .ims file to *swc_file* (default: next to the .ims file).
-    Returns (swc_file, n_fragments, n_fragment_points).
+    Returns (swc_file, n_fragments, n_fragment_points, topology report).
     """
     filename = Path(filename)
     if names is None:
@@ -258,7 +262,8 @@ def ims_to_swc(
     if swc_file is None:
         swc_file = filename.with_suffix(".swc")
     write_swc(swc, swc_file, filename, objects)
-    return Path(swc_file), n_fragments, n_fragment_points
+    report = topology_check.check_swc(swc, source=Path(swc_file).name)
+    return Path(swc_file), n_fragments, n_fragment_points, report
 
 
 def main() -> None:
@@ -273,9 +278,10 @@ def main() -> None:
     )
     parser.add_argument("--list", action="store_true", help="list the filament objects and exit")
     parser.add_argument(
-        "--connected-only",
+        "--keep-fragments",
         action="store_true",
-        help="leave out pieces that are not connected to a root (soma)",
+        help="also write pieces that are not connected to the soma, as separate trees "
+        "(the SWC is then not one connected tree)",
     )
     args = parser.parse_args()
 
@@ -287,13 +293,16 @@ def main() -> None:
         if len(names) == 0:
             print("    (none)")
         return
-    swc_file, n_fragments, n_points = ims_to_swc(
-        args.ims_file, args.output, args.objects, connected_only=args.connected_only
+    swc_file, n_fragments, n_points, report = ims_to_swc(
+        args.ims_file, args.output, args.objects, connected_only=not args.keep_fragments
     )
     print(f"Wrote {str(swc_file):s}")
     if n_fragments > 0:
-        action = "left out" if args.connected_only else "written as separate trees"
+        action = "written as separate trees" if args.keep_fragments else "left out"
         print(f"{n_fragments:d} piece(s) ({n_points:d} points) not connected to the soma were {action:s}")
+    print(report)
+    if not report.ok:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
