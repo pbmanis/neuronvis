@@ -52,6 +52,7 @@ os.environ["PYQTGRAPH_QT_LIB"] = "PyQt6"
 import numpy as np
 import pyqtgraph as pg
 from pylibrary.tools import fileselector
+from pylibrary.tools.cprint import cprint as CP
 from pyqtgraph import QtGui
 from pyqtgraph import opengl as opengl
 
@@ -151,6 +152,8 @@ class Render(object):
             verify=verify,
             verbose=verbose
         )
+        # Claude added 2026-11-17: say what was done to the data
+        CP("c", "\n".join([f"Source: {Path(hoc_file).resolve()!s}"] + hoc.provenance + hoc.transforms))
         if self.points is not None:
             self.counting_point_data = pd.read_csv(self.points)
             self.counting_point_data["x"] -= hoc.centerpos["x"]
@@ -447,7 +450,8 @@ def main() -> None:
         type=str,
         default="sbem3",
         dest="section_map",
-        choices=["swc", "sbem", "sbem2", "sbem3", "sbem4"],
+        # choices=["swc", "sbem", "sbem2", "sbem3", "sbem4"],
+        choices=["swc", "sbem", "sbem2", "sbem3", "sbem4", "sbem5"],  # Claude fixed 2026-11-18: sbem5 was missing
         help="Choose section mapping",
     )
 
@@ -527,8 +531,15 @@ def main() -> None:
         "--sr",
         dest="scaler",
         type=float,
-        default=1.0,
-        help="Scale the swc radius rendering by this factor (default: 1.0)",
+        # default=1.0,
+        # help="Scale the swc radius rendering by this factor (default: 1.0)",
+        default=None,  # Claude fixed 2026-11-17: with --sx/--sy/--sz but no --sr, radii stayed in pixels
+        # help="Scale the swc radius rendering by this factor (default: the mean of the x, y and z scales)",
+        # help="Scale the swc radius by this factor; required with --sx/--sy/--sz "
+        # "(radii in the same pixel units: the mean of the x, y, z scales; radii already in um: 1)",
+        # Claude fixed 2026-11-18: syGlass radii are in x/y pixels, not the mean of x/y/z
+        help="Scale the swc radius by this factor; required with --sx/--sy/--sz "
+        "(radii in the same pixel units: the x/y pixel size; radii already in um: 1)",
     )
 
     parser.add_argument(
@@ -566,6 +577,15 @@ def main() -> None:
         help="Enable verbose output",
     )
     args = vars(parser.parse_args())
+    # Claude added 2026-11-17: no assumed radius scale when the coordinates are scaled
+    xyz = [args.get("scalex", 1.0), args.get("scaley", 1.0), args.get("scalez", 1.0)]
+    if args.get("scaler") is None and any(v != 1.0 for v in xyz):
+        parser.error(
+            # f"--sr is required with --sx/--sy/--sz (radii in the same pixel units: --sr {np.mean(xyz):.4g}; "
+            # Claude fixed 2026-11-18: syGlass radii are in x/y pixels, not the mean of x/y/z
+            f"--sr is required with --sx/--sy/--sz (radii in the same pixel units: --sr {np.mean(xyz[:2]):.4g}; "
+            "radii already in um: --sr 1)"
+        )
 
     hoc_file = None
     sim_data = None
@@ -598,7 +618,8 @@ def main() -> None:
             "x": args.get("scalex", 1.0),
             "y": args.get("scaley", 1.0),
             "z": args.get("scalez", 1.0),
-            "r": args.get("scaler", 1.0),
+            # "r": args.get("scaler", 1.0),
+            "r": args.get("scaler") if args.get("scaler") is not None else 1.0,  # Claude fixed 2026-11-17: explicit (checked above)
         },
         display_mode=args["display_mode"],
         mechanism=args["mechanism"],

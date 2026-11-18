@@ -102,6 +102,8 @@ class SWC(object):
         self.center = center
         self.verify = verify
         self.centerpos = {'x': 0.0, 'y': 0.0, 'z': 0.0}
+        self.section_map_name = section_map
+        self.transforms = []  # Claude added 2026-11-17: every change made to the SWC data, for file headers and the user
         if args is not None:
             self.center = args.center
             self.pruneaxon = args.pruneaxon
@@ -124,6 +126,9 @@ class SWC(object):
             case "sbem4":
                 self.sectypes = swc_sectypes.sbem4_sectypes
                 self.idsofpart = swc_sectypes.idsofpart_sbem4
+            case "sbem5":
+                self.sectypes = swc_sectypes.sbem5_sectypes
+                self.idsofpart = swc_sectypes.idsofpart_sbem5
             case _:
                 raise ValueError("SWC number map type is not recognized: %s" % section_map)
 
@@ -161,7 +166,27 @@ class SWC(object):
         if self.scalexyzr is not None:
             print("swc_to_hoc: Rescaling swc with: ", self.scalexyzr)
             # hack: for radius if the scale is not set, use the projection of the xyz scales
-            rscale = self.scalexyzr.get("r", np.linalg.norm([self.scalexyzr["x"], self.scalexyzr["y"], self.scalexyzr["z"]]))
+            # rscale = self.scalexyzr.get("r", np.linalg.norm([self.scalexyzr["x"], self.scalexyzr["y"], self.scalexyzr["z"]]))
+            # rscale = self.scalexyzr.get("r")  # Claude fixed 2026-11-17: unset (None) -> mean of the x/y/z scales, as used to make the um versions of pixel-unit SWCs (the norm overscaled 2x)
+            # if rscale is None:
+            #     rscale = float(np.mean([self.scalexyzr["x"], self.scalexyzr["y"], self.scalexyzr["z"]]))
+            # Claude fixed 2026-11-17: no assumed radius scale. Unset is allowed only when x, y and z
+            # are not scaled (then 1); otherwise the caller must give one explicitly.
+            rscale = self.scalexyzr.get("r")
+            xyz = [self.scalexyzr["x"], self.scalexyzr["y"], self.scalexyzr["z"]]
+            if rscale is None:
+                if any(v != 1.0 for v in xyz):
+                    raise ValueError(
+                        f"swc_to_hoc:: x, y, z are scaled by {xyz[0]:g}, {xyz[1]:g}, {xyz[2]:g} but no radius scale "
+                        f"was given; set it explicitly (radii in the same pixel units: the mean, {np.mean(xyz):.4g}; "
+                        "radii already in um: 1)"
+                    )
+                rscale = 1.0
+            self.scalexyzr = {**self.scalexyzr, "r": rscale}  # the value used, for the hoc header
+            if any(v != 1.0 for v in xyz + [rscale]):
+                self.transforms.append(
+                    f"scaled: x by {xyz[0]:g}, y by {xyz[1]:g}, z by {xyz[2]:g}, radius by {rscale:g}"
+                )
             self.rescale(
                 x=self.scalexyzr["x"],
                 y=self.scalexyzr["y"],
@@ -184,6 +209,10 @@ class SWC(object):
             )
 
             print("swc_to_hoc:: Center position: ", self.centerpos)
+            self.transforms.append(
+                f"centred: translated by ({-self.centerpos['x']:.4f}, {-self.centerpos['y']:.4f}, "
+                f"{-self.centerpos['z']:.4f}) um so that node {int(self.data['id'][0]):d} is at the origin"
+            )
 
     def copy(self) -> object:
         return SWC(data=self.data.copy(), types=self.sectypes)
@@ -256,7 +285,12 @@ class SWC(object):
             if r["type"] in self.idsofpart["soma"]:
                 soma_sec = r.copy()
         if soma_sec is not None:
+            old_root = int(self.data["id"][self.data["parent"] == -1][0]) if np.any(self.data["parent"] == -1) else None
             self.reparent(ident=soma_sec["id"])
+            if old_root is not None and old_root != int(soma_sec["id"]):  # Claude added 2026-11-17: record it
+                self.transforms.append(
+                    f"re-rooted: the tree now starts at soma node {int(soma_sec['id']):d} (was node {old_root:d})"
+                )
 
     def reparent(self, ident: int) -> None:
         """
@@ -360,14 +394,17 @@ class SWC(object):
         hoc = []
         # Add some header information
         hoc.extend([f"// Translated from SWC format by: swc_to_hoc.py"])
-        hoc.append(f"// Source file: {str(self.filename):s}")
+        # hoc.append(f"// Source file: {str(self.filename):s}")
+        hoc.append(f"// Source file: {str(Path(self.filename).resolve()):s}")  # Claude fixed 2026-11-17: full path
         hoc.append(f"// {datetime.datetime.now().strftime('%B %d %Y, %H:%M:%S'):s}")
-        if self.scalexyzr is None:
-            hoc.append(f"// No scaling")
-        else:
-            hoc.append(
-                f"// Scaling: x: {self.scalexyzr['x']:f}, y: {self.scalexyzr['y']:f}, z: {self.scalexyzr['z']:f}, r: {self.scalexyzr['r']:f}"
-            )
+        # if self.scalexyzr is None:
+        #     hoc.append(f"// No scaling")
+        # else:
+        #     hoc.append(
+        #         f"// Scaling: x: {self.scalexyzr['x']:f}, y: {self.scalexyzr['y']:f}, z: {self.scalexyzr['z']:f}, r: {self.scalexyzr['r']:f}"
+        #     )
+        # Claude fixed 2026-11-17: record every transform and the conversion rules (see provenance())
+        self._conversion = {"soma_cylinders": [], "wires": 0, "soma_child_diam": 0, "parent_points": 0}
         hoc.append("")
         # sectypes = self.sectypes.copy()
         sectypes = {  # Claude fixed 2026-11-17: type names become HOC SectionList names; spaces (sbem4 "Basal dendrite") are a HOC syntax error and no sections were created
@@ -389,56 +426,186 @@ class SWC(object):
         # create sections
         sects = self.sections
 
+        # hoc.append(f"create sections[{len(sects):d}]")
+        # sec_ids = {}
+        #
+        # for i, sec in enumerate(sects):
+        #     # remember hoc index for this section
+        #     endpt = self[sec[-1]]["id"]
+        #     sec_id = len(sec_ids)
+        #     sec_ids[endpt] = sec_id
+        #     # print(i, sec, endpt, sec_id)
+        #     #            print(sects)
+        #     # add section to list
+        #     hoc.append(f"access sections[{sec_id:d}]")
+        #     typ = self[sec[0]]["type"]
+        #     hoc.append(f"{sectypes[typ]:s}.append()")
+        #
+        #     # connect section to parent
+        #     p = self[sec[0]]["parent"]
+        #     if p != -1:
+        #         # print(f"p: {str(p):s}, {sec_id:d}")
+        #         # print(self[sec[0]])
+        #         # print(sec_id, sec_ids, p)
+        #         if p in sec_ids:
+        #             hoc.append(f"connect sections[{sec_id:d}](0), sections[{sec_ids[p]:d}](1)")
+        #
+        #     # set up geometry for this section
+        #     hoc.append("sections[%d] {" % sec_id)
+        #     if len(sec) == 1:
+        #         if p != -1 and p in sec_ids:  # if a parent exists, then make this connections
+        #             seg = sects[sec_ids[p]][-1]  # get last segement in the parent section
+        #             rec = self[seg]
+        #             if rec["r"] < 0.05:
+        #                 # print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
+        #                 rec["r"] = 0.05
+        #             hoc.append(
+        #                 f"  pt3dadd({rec['x']:f}, {rec['y']:f}, {rec['z']:f}, {rec['r']*2:f})  // seg={seg:d} Singleton repair: to section[{sec_ids[p]:d}]"
+        #             )
+        #     for seg in sects[sec_id]:
+        #         rec = self[seg]
+        #         if rec["r"] < 0.05:
+        #             # print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
+        #             rec["r"] = 0.05
+        #         hoc.append(
+        #             f"  pt3dadd({rec['x']:f}, {rec['y']:f}, {rec['z']:f}, {rec['r']*2:f})   // seg={seg:d}"
+        #         )
+        #     hoc.append("}")
+        #
+        #     hoc.append("")
+        # Claude fixed 2026-11-17: this loop replaces the one above and follows NEURON's Import3D (read_swc.hoc,
+        # import3d_gui.hoc) instead of the earlier rules, which (1) left a one-point soma as a
+        # one-point section (L = 0, no membrane), (2) started dendrites on the soma with the soma's
+        # diameter, and (3) started every other child at its own first point, leaving the stretch
+        # from its parent out of L and area and a gap that define_shape() closed by moving the child
+        # and everything beyond it. See _section_geometry.
         hoc.append(f"create sections[{len(sects):d}]")
         sec_ids = {}
+        one_point_root = set()  # hoc indexes of one-point roots drawn as 3-point cylinders
+        soma_types = set(self.idsofpart.get("soma", [1]))
 
         for i, sec in enumerate(sects):
             # remember hoc index for this section
             endpt = self[sec[-1]]["id"]
             sec_id = len(sec_ids)
             sec_ids[endpt] = sec_id
-            # print(i, sec, endpt, sec_id)
-            #            print(sects)
             # add section to list
             hoc.append(f"access sections[{sec_id:d}]")
             typ = self[sec[0]]["type"]
             hoc.append(f"{sectypes[typ]:s}.append()")
 
-            # connect section to parent
             p = self[sec[0]]["parent"]
-            if p != -1:
-                # print(f"p: {str(p):s}, {sec_id:d}")
-                # print(self[sec[0]])
-                # print(sec_id, sec_ids, p)
-                if p in sec_ids:
-                    hoc.append(f"connect sections[{sec_id:d}](0), sections[{sec_ids[p]:d}](1)")
-
+            parent_sec = sec_ids.get(p) if p != -1 else None
+            geometry, parentx = self._section_geometry(
+                sects, sec, sec_id, p, parent_sec, one_point_root, soma_types
+            )
+            if parent_sec is not None:  # connect section to parent
+                hoc.append(f"connect sections[{sec_id:d}](0), sections[{parent_sec:d}]({parentx:g})")
             # set up geometry for this section
             hoc.append("sections[%d] {" % sec_id)
-            if len(sec) == 1:
-                if p != -1 and p in sec_ids:  # if a parent exists, then make this connections
-                    seg = sects[sec_ids[p]][-1]  # get last segement in the parent section
-                    rec = self[seg]
-                    if rec["r"] < 0.05:
-                        # print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
-                        rec["r"] = 0.05
-                    hoc.append(
-                        f"  pt3dadd({rec['x']:f}, {rec['y']:f}, {rec['z']:f}, {rec['r']*2:f})  // seg={seg:d} Singleton repair: to section[{sec_ids[p]:d}]"
-                    )
-            for seg in sects[sec_id]:
-                rec = self[seg]
-                if rec["r"] < 0.05:
-                    # print(f"MIN DIA ENCOUNTERED: {seg:d}, {rec['r']:f}")
-                    rec["r"] = 0.05
-                hoc.append(
-                    f"  pt3dadd({rec['x']:f}, {rec['y']:f}, {rec['z']:f}, {rec['r']*2:f})   // seg={seg:d}"
-                )
+            hoc.extend(geometry)
             hoc.append("}")
-
             hoc.append("")
+        hoc[3:3] = [f"// {line:s}" for line in self.provenance()]
         if verify:
             print(hoc)
         return hoc
+
+    def _section_geometry(
+        self,
+        sects: list,
+        sec: list,
+        sec_id: int,
+        p: int,
+        parent_sec: Union[int, None],
+        one_point_root: set,
+        soma_types: set,
+    ) -> tuple:
+        """
+        pt3d lines for one section, and where it connects on its parent, following
+        NEURON's Import3D:
+          - a one-point root (a soma written as a single SWC point) becomes a 3-point
+            cylinder along x with L = diam, which has the sphere's surface area;
+          - a child of such a soma connects at its middle (0.5); if it has more than one
+            point it keeps its own points and is joined to the soma centre by a logical
+            connection (pt3dstyle), a "wire" that define_shape() does not move;
+          - any other child starts with a copy of its parent's last point, so there is no
+            gap; when the parent is soma and the child is not, that first point gets the
+            child's own diameter rather than the soma's.
+        """
+
+        def pt3d(rec, diam: Union[float, None] = None, x: Union[float, None] = None, note: str = "") -> str:
+            r = max(rec["r"], 0.05)
+            d = 2.0 * r if diam is None else diam
+            x = rec["x"] if x is None else x
+            return f"  pt3dadd({x:f}, {rec['y']:f}, {rec['z']:f}, {d:f})   // seg={rec['id']:d}{note:s}"
+
+        recs = [self[seg] for seg in sec]
+        if parent_sec is None:
+            if len(recs) == 1:  # one-point soma: cylinder with L = diam
+                one_point_root.add(sec_id)
+                self._conversion["soma_cylinders"].append((int(recs[0]["id"]), 2.0 * max(recs[0]["r"], 0.05)))
+                c, r = recs[0], max(recs[0]["r"], 0.05)
+                lines = [
+                    pt3d(c, x=c["x"] - r, note=" one-point soma as a cylinder, L = diam"),
+                    pt3d(c),
+                    pt3d(c, x=c["x"] + r),
+                ]
+                return lines, 1.0
+            return [pt3d(rec) for rec in recs], 1.0
+
+        parent = self[p]
+        child_diam = 2.0 * max(recs[0]["r"], 0.05)
+        if parent_sec in one_point_root:  # connect to the middle of the soma cylinder
+            if len(recs) > 1:
+                wire = f"  pt3dstyle(1, {parent['x']:f}, {parent['y']:f}, {parent['z']:f})   // wire to the soma centre"
+                self._conversion["wires"] += 1
+                return [wire] + [pt3d(rec) for rec in recs], 0.5
+            self._conversion["soma_child_diam"] += 1
+            return [pt3d(parent, diam=child_diam, note=" soma centre"), pt3d(recs[0])], 0.5
+        parent_is_soma = self[sects[parent_sec][0]]["type"] in soma_types
+        child_is_soma = recs[0]["type"] in soma_types
+        if parent_is_soma and not child_is_soma:
+            first = pt3d(parent, diam=child_diam, note=" parent point, child diameter")
+            self._conversion["soma_child_diam"] += 1
+        else:
+            first = pt3d(parent, note=" parent point")
+            self._conversion["parent_points"] += 1
+        return [first] + [pt3d(rec) for rec in recs], 1.0
+
+    def provenance(self) -> list:
+        """
+        Lines describing where the data came from and everything done to it, for
+        file headers (without comment markers). The conversion counts are filled
+        in by make_hoc().
+        """
+        lines = [f"Section map: {self.section_map_name!s}", "Units: um (after the scaling below)"]
+        lines.append("Transforms applied to the SWC data, in order:")
+        lines += [f"  {t:s}" for t in self.transforms] or ["  none"]
+        for flag, text in [
+            (self.pruneaxon, "axon sections removed (--pruneaxon)"),
+            (self.prunedendrite, "dendrite sections removed (--prunedendrite)"),
+            (self.prunedistal, "distal sections removed (--prunedistal)"),
+        ]:
+            if flag:
+                lines.append(f"  {text:s}")
+        c = getattr(self, "_conversion", None)
+        if c is not None:
+            lines.append("Conversion to sections (as NEURON's Import3D):")
+            for node, diam in c["soma_cylinders"]:
+                lines.append(
+                    f"  one-point soma (node {node:d}) written as a 3-point cylinder along x, L = diam = {diam:.4g} um"
+                )
+            if c["wires"]:
+                lines.append(f"  {c['wires']:d} section(s) joined to the soma centre by a wire (pt3dstyle), at soma(0.5)")
+            if c["soma_child_diam"]:
+                lines.append(
+                    f"  {c['soma_child_diam']:d} section(s) on the soma start at the soma point with their own diameter"
+                )
+            if c["parent_points"]:
+                lines.append(f"  {c['parent_points']:d} section(s) start with a copy of their parent's last point")
+            lines.append("  radii below 0.05 um are written as 0.05 um")
+        return lines
 
     def write_hoc(self, filename: Union[Path, str, None] = None, verify: bool = False) -> None:
         """
@@ -638,7 +805,9 @@ def main() -> None:
         type=str,
         default="sbem3",
         dest="section_map",
-        choices=["swc", "sbem", "sbem2", "sbem3"],
+        # choices=["swc", "sbem", "sbem2", "sbem3"],
+        # choices=["swc", "sbem", "sbem2", "sbem3", "sbem4"],  # Claude fixed 2026-11-17: sbem4 was missing (SWC accepts it)
+        choices=["swc", "sbem", "sbem2", "sbem3", "sbem4", "sbem5"],  # Claude fixed 2026-11-18: sbem5 was missing
         help="Choose section ampping",
     )
 

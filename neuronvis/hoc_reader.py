@@ -35,6 +35,9 @@ class HocReader(object):
         self.file_loaded = False
         self.center = center
         self.centerpos = {"x": 0.0, "y": 0.0, "z": 0.0}
+        # Claude added 2026-11-17: what was done to the file's data, for the user and file headers
+        self.provenance = []  # from swc_to_hoc for .swc input
+        self.transforms = []  # done here
         self.scale = scale
         self.verbose = verbose
         print("HocReader:: Reading file:", hoc)
@@ -69,6 +72,7 @@ class HocReader(object):
                 hocstr = "\n".join(
                     s.make_hoc(verify)
                 )  # Claude fixed 2026-06-16: build HOC string directly
+                self.provenance = s.provenance()  # Claude added 2026-11-17
                 if verify:
                     print(hocstr)
                 neuron.h.hoc_stdout(
@@ -112,18 +116,34 @@ class HocReader(object):
                     ".hocx",
                 ]:  # Claude fixed 2026-06-16: .hocx uses sections[N]; treat like .swc
                     if i == 0:  # assume the first section is soma
-                        x0 = sec.x3d(0)
-                        y0 = sec.y3d(0)
-                        z0 = sec.z3d(0)
+                        # x0 = sec.x3d(0)
+                        # y0 = sec.y3d(0)
+                        # z0 = sec.z3d(0)
+                        # Claude fixed 2026-11-17: swc_to_hoc writes a one-point soma as a 3-point
+                        # cylinder from x - r to x + r; its middle point is the soma's position
+                        k = 1 if topology_check.is_soma_cylinder(sec) else 0
+                        x0 = sec.x3d(k)
+                        y0 = sec.y3d(k)
+                        z0 = sec.z3d(k)
                         # print("Centering soma at (%.2f, %.2f, %.2f)" % (x0, y0, z0)
                         # )
                         soma_found = True
                         break
             if soma_found:
-                if (
-                    fullfile.suffix == ".hocx"
-                ):  # Claude fixed 2026-06-16: capture centerpos so counting-point offsets are applied
-                    self.centerpos = {"x": x0, "y": y0, "z": z0}
+                # if (
+                #     fullfile.suffix == ".hocx"
+                # ):  # Claude fixed 2026-06-16: capture centerpos so counting-point offsets are applied
+                #     self.centerpos = {"x": x0, "y": y0, "z": z0}
+                # Claude fixed 2026-11-17: centerpos is the total shift from the file's coordinates. For
+                # .swc input, swc_to_hoc has already centred on node 1 (s.centerpos) and this centres
+                # again on the soma, which was not added, so points and meshes were offset; for .hoc
+                # files it was not set at all.
+                self.centerpos = {"x": self.centerpos["x"] + x0, "y": self.centerpos["y"] + y0, "z": self.centerpos["z"] + z0}
+                self.transforms.append(
+                    f"centred on the soma: translated by ({-x0:.4f}, {-y0:.4f}, {-z0:.4f}) um; total shift from "
+                    f"the file's coordinates ({-self.centerpos['x']:.4f}, {-self.centerpos['y']:.4f}, "
+                    f"{-self.centerpos['z']:.4f}) um"
+                )
                 for sec in self.h.allsec():
                     for i in range(int(sec.n3d())):
                         h.pt3dchange(
@@ -134,6 +154,12 @@ class HocReader(object):
                             sec.diam3d(i),
                             sec=sec,
                         )
+                    # Claude added 2026-11-17: move a logical connection ("wire", pt3dstyle) with the
+                    # points; left behind, define_shape() pulls the section back to the old place
+                    if h.pt3dstyle(sec=sec):
+                        wx, wy, wz = h.ref(0.0), h.ref(0.0), h.ref(0.0)
+                        h.pt3dstyle(1, wx, wy, wz, sec=sec)
+                        h.pt3dstyle(1, wx[0] - x0, wy[0] - y0, wz[0] - z0, sec=sec)
             else:
                 print(
                     "Warning: No soma section found, not centering the sections. "
@@ -482,22 +508,27 @@ class HocReader(object):
         # topologically (via "connect" statements) but their pt3dadd coordinates don't overlap:
         # the last 3D point of the parent and the first 3D point of the child are spatially
         # adjacent but at distinct positions, so no within-section edge covers the junction.
-        for sec_name, secv in self.sections.items():
-            try:
-                parent_seg = secv.trueparentseg()
-            except Exception:
-                continue
-            if parent_seg is None:
-                continue
-            parent_sec_name = parent_seg.sec.name()
-            if parent_sec_name not in sec_vertex_range or sec_name not in sec_vertex_range:
-                continue
-            parent_last_idx = sec_vertex_range[parent_sec_name][1]
-            child_first_idx = sec_vertex_range[sec_name][0]
-            # Skip degenerate zero-length edges: singleton sections already have the parent's
-            # last pt3d duplicated as their own first pt3d (singleton repair in swc_to_hoc).
-            if not np.allclose(vertexes[parent_last_idx][0], vertexes[child_first_idx][0]):
-                connections.append([parent_last_idx, child_first_idx])
+        # for sec_name, secv in self.sections.items():
+        #     try:
+        #         parent_seg = secv.trueparentseg()
+        #     except Exception:
+        #         continue
+        #     if parent_seg is None:
+        #         continue
+        #     parent_sec_name = parent_seg.sec.name()
+        #     if parent_sec_name not in sec_vertex_range or sec_name not in sec_vertex_range:
+        #         continue
+        #     parent_last_idx = sec_vertex_range[parent_sec_name][1]
+        #     child_first_idx = sec_vertex_range[sec_name][0]
+        #     # Skip degenerate zero-length edges: singleton sections already have the parent's
+        #     # last pt3d duplicated as their own first pt3d (singleton repair in swc_to_hoc).
+        #     if not np.allclose(vertexes[parent_last_idx][0], vertexes[child_first_idx][0]):
+        #         connections.append([parent_last_idx, child_first_idx])
+        # Claude fixed 2026-11-17: bridging edges removed. swc_to_hoc now starts each child section
+        # with a copy of its parent's point (as NEURON's Import3D does), so there is no gap to bridge;
+        # gaps in other hoc files are closed by define_shape() above, which moves the child; and
+        # dendrites on a one-point soma are connected by a logical "wire" (pt3dstyle), which should
+        # not be drawn as a cone from the soma.
 
         self.edges = np.array(connections)
         self.vertexes = np.empty(

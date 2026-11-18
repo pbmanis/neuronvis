@@ -4,7 +4,9 @@ sec_types.py : define section types for various mappings.
 """
 import numpy as np
 
-all_sectypes = ["swc_sectypes", "sbem_sectypes", "sbem2_sectypes", "sbem3_sectypes", "sbem4_sectypes", "grc_swc_sectypes"]
+# all_sectypes = ["swc_sectypes", "sbem_sectypes", "sbem2_sectypes", "sbem3_sectypes", "sbem4_sectypes", "grc_swc_sectypes"]
+all_sectypes = ["swc_sectypes", "sbem_sectypes", "sbem2_sectypes", "sbem3_sectypes", "sbem4_sectypes", "sbem5_sectypes",
+                "grc_swc_sectypes"]  # Claude fixed 2026-11-18: sbem5 was not listed
 # standard SWC types:
 swc_sectypes = {
     #  0: 'undefined',
@@ -208,6 +210,59 @@ sbem4_sectypes = {
 }
 
 
+sbem5_sectypes = {
+0	: "Undefined",
+1	: "Soma",
+2	: "Axon",
+3	: "Basal dendrite",
+4	: "Apical dendrite",
+5	: "Custom",
+6	: "Unspecified neurite",
+7	: "Glial process",
+8   : "Soma",
+9	: "Soma_spine",
+10	: "Soma_undefined_1",
+11	: "Soma_undefined_2",
+12	: "Soma_undefined_3",
+13	: "Axon_hillock",
+14	: "Axon_initial_segment",
+15	: "Axon_myelinated_segment",
+16	: "Axon_node",
+17	: "Axon_heminode",
+18	: "Axon_spine",
+19	: "Axon_unmyelinated",
+20	: "Axon_undefined_1",
+21	: "Axon_undefined_2",
+22	: "Terminal",
+23	: "Terminal_stalk",
+24	: "Terminal_swelling",
+25	: "Terminal_neck",
+26	: "Terminal_branch",
+27	: "Terminal_undefined_1",
+28	: "Terminal_undefined_2",
+29	: "Terminal_undefined_3",
+30	: "Dendrite_basal",
+31	: "Dendrite_apical",
+32	: "Dendrite_proximal",
+33	: "Dendrite_distal",
+34	: "Dendrite_spine",
+35	: "Dendrite_hub",
+36	: "Dendrite_swelling",
+37	: "Dendrite_preclaw",
+38	: "Dendrite_claw",
+39	: "Dendrite_undefined_1",
+40	: "Dendrite_undefined_2",
+41	: "Dendrite_undefined_3",
+42	: "Neurite",
+43  : "Cilium",
+44	: "Astrocyte_soma",
+45	: "Astrocyte_primary_branch",
+46	: "Astrocyte_distal_process",
+47	: "Astrocyte_vellus_process",
+48	: "Astrocyte_blood_brain_barrier",
+49	: "Astrocyte_undefined",
+
+}
 
 # renaming of cell parts to match cnmodel data tables (temporary)
 # renaming = {
@@ -280,6 +335,15 @@ idsofpart_sbem4 = {  # for sbem4 map (what a pain! )
 idsofpart_sbem4['soma'] += [int(x) for x in np.arange(43, 47)]
 idsofpart_sbem4['axon'] += [int(x) for x in np.arange(47, 49)]
 
+idsofpart_sbem5 = {  # for sbem5 map (syGlass "em16" numbering: 8 = Soma ... 38 = Dendrite_claw)
+    "dendrite": [3, 4] + [int(x) for x in np.arange(30, 42)],
+    "distal": [33],
+    "axon": [2] + [int(x) for x in np.arange(13, 22)],
+    "terminal": [int(x) for x in np.arange(22, 30)],
+    "soma": [1] + [int(x) for x in np.arange(8, 13)],
+    "astrocyte": [int(x) for x in np.arange(44, 50)],
+}
+
 
 
 def get_partsof(sbem3_sectypes):
@@ -329,5 +393,6 @@ sectypes = {"swc": swc_sectypes, # original definitions
             "sbem2": sbem2_sectypes, # bushy cell definitions
             "sbem3": sbem3_sectypes, # second block, small-cell cap definitions
             "sbem4": sbem4_sectypes, # third block, small-cell cap definitions revised to keep original SWC types in 0-7
+            "sbem5": sbem5_sectypes, # syGlass "em16" numbering (8 = Soma ... 38 = Dendrite_claw)
             "grc": sbem_sectypes, # granule cell definitions
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Use Semantic Versioning, http://semver.org/
-version_info = (0, 3, 0, 'a')
+version_info = (0, 3, 2, 'a')
 __version__ = "%d.%d.%d%s" % version_info
 
 import neuronvis.hocRender
