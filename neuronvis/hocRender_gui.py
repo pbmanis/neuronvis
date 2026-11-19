@@ -150,6 +150,16 @@ def force_load_hoc(filename: Path, verbose: bool = False) -> None:
         raise NameError(f"NEURON failed to load: {str(filename):s}")
 
 
+class StereoWindow(QtWidgets.QWidget):
+    """full-screen window for the stereo pair on another display (e.g. display glasses)"""
+
+    closed = QtCore.Signal()
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        self.closed.emit()
+        super().closeEvent(event)
+
+
 class HocRenderWindow(QtWidgets.QMainWindow):
     def __init__(self, filename: Union[str, Path, None] = None) -> None:
         super().__init__()
@@ -160,6 +170,9 @@ class HocRenderWindow(QtWidgets.QMainWindow):
         self.vispy_graphic = None  # vispy_Cylinders keeps its own canvas + timer
         self.vispy_canvas = None
         self.vispy_view = None
+        self.vispy_lighting = None  # vispy_stereo.Lighting for the meshes in the vispy view
+        self.vispy_stereo = None  # vispy_stereo.StereoCanvas when the vispy view is in stereo
+        self.stereo_window = None  # StereoWindow when the stereo pair is full screen on another display
         self.mpl_figure = None
         self.hoc = None
         self.bounds = None  # (min xyz, max xyz) of the rendered cell
@@ -301,6 +314,40 @@ class HocRenderWindow(QtWidgets.QMainWindow):
                         value="sbem3",
                     ),
                     dict(name="Alpha", type="float", value=0.45, limits=(0.0, 1.0), step=0.05),
+                    dict(
+                        name="Stereo (side by side)",
+                        type="bool",
+                        value=False,
+                        tip="vispy: left eye | right eye, for display glasses with a side-by-side 3D mode. "
+                        "Checking it selects the vispy renderer.",
+                    ),
+                    dict(
+                        name="Eye separation (deg)",
+                        type="float",
+                        value=3.0,
+                        limits=(0.5, 10.0),
+                        step=0.5,
+                        tip="Angle between the eyes' views; larger gives more depth",
+                    ),
+                    dict(
+                        name="Swap eyes (cross-eyed)",
+                        type="bool",
+                        value=False,
+                        tip="Right eye's view on the left: free-view the screen cross-eyed, without glasses",
+                    ),
+                    dict(
+                        name="Stereo background",
+                        type="color",
+                        value="#000000",
+                        tip="Black is see-through in display glasses; on a dark background dark colours are brightened",
+                    ),
+                    dict(
+                        name="Stereo output",
+                        type="list",
+                        limits=self.stereo_outputs(),
+                        value="this window",
+                        tip="Show the stereo pair full screen on a display (the glasses); Esc there brings it back",
+                    ),
                 ],
             ),
             dict(
@@ -334,6 +381,39 @@ class HocRenderWindow(QtWidgets.QMainWindow):
                     ),
                     dict(name="Smooth mesh", type="action"),
                     dict(name="Save smoothed mesh...", type="action"),
+                ],
+            ),
+            dict(
+                name="Lighting",
+                type="group",
+                tip="vispy renderer; changes apply to the view directly",
+                children=[
+                    dict(
+                        name="Headlight",
+                        type="bool",
+                        value=True,
+                        tip="The light follows the view (no dark side); off: a light fixed in the scene",
+                    ),
+                    dict(
+                        name="Light above (deg)",
+                        type="float",
+                        value=20.0,
+                        limits=(-90.0, 90.0),
+                        step=5.0,
+                        tip="Headlight direction: degrees above the line of sight",
+                    ),
+                    dict(
+                        name="Light left (deg)",
+                        type="float",
+                        value=20.0,
+                        limits=(-90.0, 90.0),
+                        step=5.0,
+                        tip="Headlight direction: degrees to the left of the line of sight",
+                    ),
+                    dict(name="Ambient", type="float", value=0.30, limits=(0.0, 1.0), step=0.05),
+                    dict(name="Diffuse", type="float", value=0.80, limits=(0.0, 1.0), step=0.05),
+                    dict(name="Specular", type="float", value=0.25, limits=(0.0, 1.0), step=0.05),
+                    dict(name="Shininess", type="float", value=60.0, limits=(1.0, 500.0), step=10.0),
                 ],
             ),
             dict(
@@ -437,6 +517,14 @@ class HocRenderWindow(QtWidgets.QMainWindow):
         self.params.child("Mesh", "Smoothing").sigValueChanged.connect(self.smoothing_changed)
         self.params.child("Mesh", "Smooth mesh").sigActivated.connect(self.smooth_mesh)
         self.params.child("Mesh", "Save smoothed mesh...").sigActivated.connect(self.save_smoothed_mesh)
+        for param in self.params.child("Lighting").children():
+            param.sigValueChanged.connect(self.apply_lighting)
+        self.params.child("Display", "Stereo (side by side)").sigValueChanged.connect(self.stereo_changed)
+        for name in ("Eye separation (deg)", "Swap eyes (cross-eyed)", "Stereo background"):
+            self.params.child("Display", name).sigValueChanged.connect(self.apply_stereo)
+        self.params.child("Display", "Stereo output").sigValueChanged.connect(self.stereo_output_changed)
+        QtWidgets.QApplication.instance().screenAdded.connect(self.update_stereo_outputs)
+        QtWidgets.QApplication.instance().screenRemoved.connect(self.update_stereo_outputs)
         self.params.child("Actions", "Render").sigActivated.connect(self.render)
         self.params.child("Actions", "Reset view").sigActivated.connect(self.reset_view)
         self.params.child("Actions", "Save image...").sigActivated.connect(self.save_image)
@@ -498,6 +586,50 @@ class HocRenderWindow(QtWidgets.QMainWindow):
         if self.viewer is not None:
             self.render()
 
+    def stereo_changed(self, param: Parameter, stereo: bool) -> None:
+        """stereo is drawn by vispy: select it, and redraw what is shown"""
+        if stereo and self.value("Display", "Renderer") != "vispy":
+            self.params.child("Display", "Renderer").setValue("vispy")
+        self.rerender()
+
+    def apply_stereo(self) -> None:
+        """eye separation, swapped eyes and background, without re-rendering"""
+        if self.vispy_stereo is None:
+            return
+        self.vispy_stereo.set_separation(
+            self.value("Display", "Eye separation (deg)"), self.value("Display", "Swap eyes (cross-eyed)")
+        )
+        self.vispy_stereo.canvas.bgcolor = self.stereo_background()
+        self.vispy_stereo.canvas.update()
+
+    def stereo_background(self) -> tuple:
+        color = self.params.child("Display", "Stereo background").value()
+        return (color.redF(), color.greenF(), color.blueF(), 1.0)
+
+    def stereo_outputs(self) -> list:
+        """choices for Display > Stereo output: this window, or a display by name"""
+        return ["this window"] + [screen.name() for screen in QtGui.QGuiApplication.screens()]
+
+    def stereo_screen(self) -> Union[QtGui.QScreen, None]:
+        """the display chosen in Stereo output, or None for this window"""
+        name = self.value("Display", "Stereo output")
+        return next((s for s in QtGui.QGuiApplication.screens() if s.name() == name), None)
+
+    def update_stereo_outputs(self) -> None:
+        """a display was connected or disconnected"""
+        param = self.params.child("Display", "Stereo output")
+        current = param.value()
+        param.setLimits(self.stereo_outputs())
+        param.setValue(current if current in param.opts["limits"] else "this window")
+
+    def stereo_output_changed(self) -> None:
+        if self.value("Display", "Stereo (side by side)"):
+            self.rerender()
+
+    def stereo_window_closed(self) -> None:
+        """the full-screen stereo window was closed (Esc, or by the system): draw the pair here again"""
+        QtCore.QTimer.singleShot(0, lambda: self.params.child("Display", "Stereo output").setValue("this window"))
+
     def clear_points(self) -> None:
         self.params.child("Input", "Points file").setValue("")
 
@@ -535,6 +667,7 @@ class HocRenderWindow(QtWidgets.QMainWindow):
                 values = {}
                 CP("y", "hocRenderGUI: could not read saved settings, using defaults")
             filaments = values.pop("Input/Imaris filaments", None)
+            values.pop("Display/Stereo output", None)  # always start in this window, not full screen
             for key, value in values.items():
                 try:
                     self.params.child(*key.split("/")).setValue(value)
@@ -1245,6 +1378,13 @@ class HocRenderWindow(QtWidgets.QMainWindow):
             self.vispy_canvas.close()
             self.vispy_canvas = None
             self.vispy_view = None
+        self.vispy_lighting = None
+        self.vispy_stereo = None
+        if self.stereo_window is not None:
+            window, self.stereo_window = self.stereo_window, None
+            window.closed.disconnect()  # closed here: do not switch the output back
+            window.close()
+            window.deleteLater()
         if self.mpl_figure is not None:
             self.mpl_figure.clear()
             self.mpl_figure = None
@@ -1615,6 +1755,11 @@ class HocRenderWindow(QtWidgets.QMainWindow):
         import vispy.scene
 
         from neuronvis import hoc_graphics as HG
+        from neuronvis import vispy_stereo as VS
+
+        if self.value("Display", "Stereo (side by side)"):
+            self.render_vispy_stereo(mechanism, title, mesh)
+            return
 
         # Moving a vispy canvas into another window after it has been shown
         # recreates its GL context and vispy then fails to draw (GL_INVALID_OPERATION).
@@ -1637,8 +1782,13 @@ class HocRenderWindow(QtWidgets.QMainWindow):
             try:
                 # vispy_Cylinders shows its canvas and calls vispy.app.run(); with the
                 # Qt event loop already running, run() returns immediately.
+                # self.vispy_graphic = HG.vispy_Cylinders(
+                #     self.hoc, mechanism=mechanism, color=rc.section_colors, title=title, headlight=True
+                # )
+                # Claude fixed 2026-11-18: its headlight sent the light down the screen (a top light);
+                # the Lighting group's VS.Lighting lights the tubes, spheres and mesh instead
                 self.vispy_graphic = HG.vispy_Cylinders(
-                    self.hoc, mechanism=mechanism, color=rc.section_colors, title=title, headlight=True
+                    self.hoc, mechanism=mechanism, color=rc.section_colors, title=title, headlight=False
                 )
             finally:
                 vispy.scene.SceneCanvas = scene_canvas
@@ -1674,9 +1824,132 @@ class HocRenderWindow(QtWidgets.QMainWindow):
             extents.append(vertices)
             self.layers["mesh"].append(mesh_visual)
             self.extents["mesh"] = vertices
+        self.vispy_lighting = VS.Lighting(self.vispy_view.camera, **self.lighting_settings())
+        for visual in (*self.layers["morphology"], *self.layers["mesh"]):
+            self.vispy_lighting.add(visual)  # visuals without shading (lines, markers) are skipped
         pos = np.concatenate(extents, axis=0)
         self.bounds = (pos.min(axis=0), pos.max(axis=0))
         self.reset_view()
+
+    def render_vispy_stereo(self, mechanism: Union[str, None], title: str, mesh: Union[tuple, None]) -> None:
+        """
+        the vispy view as a side-by-side stereo pair (vispy_stereo.StereoCanvas):
+        the morphology is merged into one mesh and drawn in both eyes with the
+        cell mesh and the axes; each layer holds both eyes' visuals
+        """
+        import vispy.scene
+
+        from neuronvis import hoc_graphics as HG
+        from neuronvis import vispy_stereo as VS
+
+        screen = self.stereo_screen()
+        if screen is None:
+            host = QtWidgets.QWidget()
+            self.set_viewer(host, "vispy")
+        else:
+            # shown full screen before the canvas is made in it (a vispy canvas cannot
+            # move to another window once shown)
+            note = QtWidgets.QLabel(
+                f"The stereo view is full screen on {screen.name():s}.\n"
+                "Esc there, or Display > Stereo output: this window, brings it back."
+            )
+            note.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            self.set_viewer(note, "vispy")
+            host = StereoWindow()
+            host.setWindowTitle("hocRender stereo")
+            host.setScreen(screen)
+            host.setGeometry(screen.geometry())
+            host.showFullScreen()
+            host.closed.connect(self.stereo_window_closed)
+            self.stereo_window = host
+        layout = QtWidgets.QVBoxLayout(host)
+        layout.setContentsMargins(0, 0, 0, 0)
+        background = self.stereo_background()
+        stereo = VS.StereoCanvas(
+            separation=self.value("Display", "Eye separation (deg)"),
+            swap=self.value("Display", "Swap eyes (cross-eyed)"),
+            bgcolor=background,
+            parent=host,
+            keys="interactive" if screen is None else None,
+        )
+        layout.addWidget(stereo.canvas.native)
+        stereo.canvas.show()
+        if screen is not None:
+            stereo.canvas.events.key_press.connect(
+                lambda event: self.stereo_window.close() if event.key == "Escape" else None
+            )
+            stereo.canvas.native.setFocus()
+        self.vispy_stereo = stereo
+        self.vispy_canvas = stereo.canvas
+        self.vispy_view = stereo.views[0]  # the two cameras are linked: setting this one sets both
+        self.vispy_lighting = stereo.lighting
+        stereo.lighting.set(**self.lighting_settings())
+        self.layers = {"morphology": [], "grid": [], "mesh": [], "points": []}
+        self.extents = {}
+        extents = []
+        if self.hoc is not None:
+            # vispy_Cylinders makes the tubes and junction spheres; its own canvas goes
+            # in a hidden child of the host, and is closed once they are merged
+            hidden = QtWidgets.QWidget(host)
+            hidden.hide()
+            scene_canvas = vispy.scene.SceneCanvas
+            vispy.scene.SceneCanvas = lambda *args, **kwds: scene_canvas(*args, **dict(kwds, parent=hidden))
+            try:
+                self.vispy_graphic = HG.vispy_Cylinders(
+                    self.hoc, mechanism=mechanism, color=rc.section_colors, title=title, headlight=False
+                )
+            finally:
+                vispy.scene.SceneCanvas = scene_canvas
+            self.vispy_graphic.timer.stop()
+            self.vispy_graphic.canvas.close()
+            morph = VS.merge_meshes(list(self.vispy_graphic.vtubes) + list(self.vispy_graphic.vspheres))
+            colors = morph.get_vertex_colors()
+            if np.mean(background[:3]) < 0.5:
+                colors = VS.brighten(colors)
+            self.layers["morphology"] = stereo.add_mesh(
+                vertices=morph.get_vertices(), faces=morph.get_faces(), vertex_colors=colors
+            )
+            points = np.concatenate(self.vispy_graphic.tubes["points"], axis=0)
+            extents.append(points)
+            self.extents["morphology"] = points
+        if mesh is not None:
+            vertices, faces = mesh
+            # translucent and drawn after the morphology so that it shows through
+            self.layers["mesh"] = stereo.add_mesh(
+                vertices=vertices, faces=faces, color=self.mesh_rgba(), translucent=True
+            )
+            extents.append(vertices)
+            self.extents["mesh"] = vertices
+
+        def axis(parent: object) -> object:
+            a = vispy.scene.visuals.XYZAxis(parent=parent)
+            a.transform = vispy.visuals.transforms.STTransform(scale=(10, 10, 10))
+            return a
+
+        self.layers["grid"] = stereo.add_visual(axis)
+        pos = np.concatenate(extents, axis=0)
+        self.bounds = (pos.min(axis=0), pos.max(axis=0))
+        self.reset_view()
+
+    def lighting_settings(self) -> dict:
+        """the Lighting group as vispy_stereo.Lighting settings"""
+        return {
+            "headlight": self.value("Lighting", "Headlight"),
+            "up": self.value("Lighting", "Light above (deg)"),
+            "left": self.value("Lighting", "Light left (deg)"),
+            "ambient": self.value("Lighting", "Ambient"),
+            "diffuse": self.value("Lighting", "Diffuse"),
+            "specular": self.value("Lighting", "Specular"),
+            "shininess": self.value("Lighting", "Shininess"),
+        }
+
+    def apply_lighting(self) -> None:
+        """Lighting group changed: update the vispy view without re-rendering"""
+        if self.vispy_lighting is None:
+            return
+        self.vispy_lighting.set(**self.lighting_settings())
+        if self.vispy_canvas is not None:
+            self.vispy_canvas.update()
 
     # ------------------------------------------------------------------
     # actions

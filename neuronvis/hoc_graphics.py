@@ -1190,12 +1190,17 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         nsec = sum([1 for x in self.h.h.allsec()])
         self.section_colors = self.set_group_colors(mechanism=mech, colors=color)
         # this generates section colors according to their order
-        import colorsys
-
-        HSV_tuples = [(x * 1.0 / nsec, 0.6, 0.6) for x in range(nsec)]
-        RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
-        for i, s in enumerate(self.section_colors):
-            self.section_colors[s] = [RGB_tuples[i][0], RGB_tuples[i][1], RGB_tuples[i][2], 1]
+        # import colorsys
+        #
+        # HSV_tuples = [(x * 1.0 / nsec, 0.6, 0.6) for x in range(nsec)]
+        # RGB_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples))
+        # for i, s in enumerate(self.section_colors):
+        #     self.section_colors[s] = [RGB_tuples[i][0], RGB_tuples[i][1], RGB_tuples[i][2], 1]
+        # Claude changed 2026-11-18: keep the section-type (group) colours from set_group_colors, as the
+        # pyqtgraph renderer does (the rainbow by section order also replaced the mechanism colouring);
+        # sections in no group are grey. Copies, because set_group_colors hands out the shared xkcd arrays.
+        for s, c in self.section_colors.items():
+            self.section_colors[s] = [0.5, 0.5, 0.5, 1.0] if c is None else list(c)
         secs_built = []
         self.nsec = 0
         self.level = 0
@@ -1569,7 +1574,12 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         # vispy ArcballCamera with up='+z' (forward=(0,1,0) in scene space).
         # dtype=float32 matches vispy's mesh_shading example.
         # [0,0,1,0] was wrong direction (maps to scene up rather than toward viewer).
-        self._cam_space_light = np.array([0, -1, 0, 0], dtype=np.float32)
+        # self._cam_space_light = np.array([0, -1, 0, 0], dtype=np.float32)
+        # Claude fixed 2026-11-18: the notes above were wrong. In vispy's camera frame z points
+        # toward the viewer (y is up), and light_dir is the direction the light travels (the
+        # shader uses dot(-light_dir, normal)), so the headlight is -map([0, 0, 1, 0]);
+        # [0, -1, 0, 0] sent the light down the screen (a top light).
+        self._cam_space_light = np.array([0, 0, 1, 0], dtype=np.float32)
         if headlight:
             self.canvas.events.draw.connect(self._pre_draw_headlight, position="first")
 
@@ -1582,7 +1592,8 @@ class vispy_Cylinders(HocGraphic, vispy.app.Canvas):
         """Push current camera-space light direction into every tube's shading filter."""
         # Claude fixed 2026-06-16: imap (scene→camera) was wrong; camera.transform
         # maps camera→scene, so map() is correct (matches vispy mesh_shading example).
-        direction = self.view.camera.transform.map(self._cam_space_light)[:3]
+        # direction = self.view.camera.transform.map(self._cam_space_light)[:3]
+        direction = -self.view.camera.transform.map(self._cam_space_light)[:3]  # Claude fixed 2026-11-18: see attach_headlight
         norm = np.linalg.norm(direction)
         if norm > 1e-10:
             direction = direction / norm
